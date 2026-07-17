@@ -1,0 +1,58 @@
+# Copyright (c) 2026
+# SPDX-License-Identifier: Apache-2.0
+
+description: |
+  Texas Instruments ADS1263 32-bit Precision Analog-to-Digital Converter.
+
+  The ADS1263 is a high-resolution, 10-channel, 32-bit delta-sigma ADC
+  with an SPI interface, programmable gain amplifier, internal reference,
+  excitation current sources and auxiliary 24-bit ADC.
+
+compatible: "ti,ads1263"
+
+include:
+  - spi-device.yaml
+
+properties:
+  reg:
+    required: true
+
+  spi-max-frequency:
+    type: int
+    required: true
+    description: |
+      Maximum SPI clock frequency in Hz.
+
+  drdy-gpios:
+    type: phandle-array
+    required: true
+    description: |
+      Data Ready output.
+      The driver waits for this signal before reading conversion data.
+
+  reset-gpios:
+    type: phandle-array
+    description: |
+      Optional hardware RESET pin.
+
+  start-gpios:
+    type: phandle-array
+    description: |
+      Optional START pin.
+      If omitted, conversions are controlled using SPI START1/STOP1 commands.
+
+  avdd-supply:
+    type: phandle
+    description: Analog supply regulator.
+
+  dvdd-supply:
+    type: phandle
+    description: Digital supply regulator.
+
+  vref-supply:
+    type: phandle
+    description: External reference regulator.
+
+  label:
+    type: string
+    deprecated: true

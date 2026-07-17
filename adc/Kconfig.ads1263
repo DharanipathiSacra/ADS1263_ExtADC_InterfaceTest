@@ -1,0 +1,8 @@
+# SPDX-License-Identifier: Apache-2.0
+
+menuconfig ADC_ADS1263
+    bool "Texas Instruments ADS1263 ADC"
+    default y
+    help
+      Enable support for the Texas Instruments ADS1263
+      32-bit SPI ADC.

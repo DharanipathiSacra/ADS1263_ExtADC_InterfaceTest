@@ -1,7 +1,0 @@
-/* app.overlay */
-
-&spi1 {
-    status = "okay";
-
-    cs-gpios = <&gpioa 9 GPIO_ACTIVE_LOW>;
-};

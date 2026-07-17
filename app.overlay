@@ -1,0 +1,22 @@
+/* app.overlay */
+
+&spi1 {
+    status = "okay";
+
+    cs-gpios = <&gpioa 9 GPIO_ACTIVE_LOW>;
+
+    ads1263: ads1263@0 {
+
+        compatible = "ti,ads1263";
+
+        reg = <0>;
+
+        spi-max-frequency = <1000000>;
+
+        drdy-gpios = <&gpioa 8 GPIO_ACTIVE_LOW>;
+
+        reset-gpios = <&gpioa 10 GPIO_ACTIVE_LOW>;
+
+        start-gpios = <&gpioa 11 GPIO_ACTIVE_HIGH>;
+    };
+};
