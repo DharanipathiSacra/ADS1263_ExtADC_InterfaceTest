@@ -6,22 +6,51 @@
 #include <zephyr/kernel.h>
 #include <zephyr/device.h>
 #include <zephyr/drivers/adc.h>
+
 #define ADS1263_NODE DT_NODELABEL(ads1263)
 
 int main(void)
 {
-	const struct device *dev = DEVICE_DT_GET(ADS1263_NODE);
+    const struct device *dev = DEVICE_DT_GET(ADS1263_NODE);
 
-	printk("\nADS1263 Driver Validation\n");
+    int ret;
+    int32_t sample;
 
-	if (!device_is_ready(dev)) {
-		printk("ADS1263 device not ready\n");
-		return 0;
-	}
+    struct adc_channel_cfg channel_cfg = {
+        .channel_id = 0,
+        .gain = ADC_GAIN_1,
+        .reference = ADC_REF_INTERNAL,
+        .acquisition_time = ADC_ACQ_TIME_DEFAULT,
+		.differential = false,
+#if defined(CONFIG_ADC_CONFIGURABLE_INPUTS)
+        .input_positive = 14,
+        .input_negative = 12, /* AVSS */
+#endif
+    };
 
-	printk("ADS1263 device ready\n");
+    struct adc_sequence sequence = {
+        .channels = BIT(0),
+        .buffer = &sample,
+        .buffer_size = sizeof(sample),
+        .resolution = 32,
+    };
 
-	while (1) {
-		k_sleep(K_SECONDS(5));
-	}
+    printf("ADS1263 Driver Validation\r\n");
+
+    if (!device_is_ready(dev)) {
+        printf("ADS1263 device not ready\r\n");
+        return 0;
+    }
+
+    ret = adc_channel_setup(dev, &channel_cfg);
+    if (ret) {
+        printf("adc_channel_setup() failed (%d)\r\n", ret);
+        return 0;
+    }
+
+    while (1) {
+
+		adc_read(dev, &sequence);
+        k_sleep(K_SECONDS(1));
+    }
 }
