@@ -23,7 +23,7 @@ int main(void)
         .acquisition_time = ADC_ACQ_TIME_DEFAULT,
 		.differential = false,
 #if defined(CONFIG_ADC_CONFIGURABLE_INPUTS)
-        .input_positive = 14,
+        .input_positive = 3,
         .input_negative = 12, /* AVSS */
 #endif
     };
@@ -48,9 +48,16 @@ int main(void)
         return 0;
     }
 
+    adc_read(dev, &sequence);
+
     while (1) {
 
-		adc_read(dev, &sequence);
-        k_sleep(K_SECONDS(1));
+        static bool once = true;
+
+        if (once) {
+            // once = false;
+            adc_read(dev, &sequence);
+        }
+        k_sleep(K_SECONDS(5));
     }
 }
