@@ -6,4 +6,4 @@ menuconfig ADC_ADS1263
     select ADC_CONFIGURABLE_INPUTS
     help
       Enable support for the Texas Instruments ADS1263
-      32-bit SPI ADC.
+      SPI ADC1: 32-bit, ADC1: 24-bit
