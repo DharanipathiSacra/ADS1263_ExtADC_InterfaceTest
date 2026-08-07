@@ -23,8 +23,8 @@ int main(void)
         .acquisition_time = ADC_ACQ_TIME_DEFAULT,
 		.differential = false,
 #if defined(CONFIG_ADC_CONFIGURABLE_INPUTS)
-        .input_positive = 3,
-        .input_negative = 12, /* AVSS */
+        .input_positive = 0, /* AIN0 */
+        .input_negative = 13, /* AVSS */
 #endif
     };
 
@@ -47,6 +47,8 @@ int main(void)
         printf("adc_channel_setup() failed (%d)\r\n", ret);
         return 0;
     }
+
+    k_sleep(K_SECONDS(1));
 
     adc_read(dev, &sequence);
 
