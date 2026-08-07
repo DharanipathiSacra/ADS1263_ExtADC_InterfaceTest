@@ -82,16 +82,85 @@ extern "C" {
 /* Gain Field Mask (Bits 6:4) */
 #define ADS1263_MODE2_GAIN_MASK        0x70u
 
-/* PGA Gain */
-#define ADS1263_MODE2_GAIN_1          (0x0u << 4)
-#define ADS1263_MODE2_GAIN_2          (0x1u << 4)
-#define ADS1263_MODE2_GAIN_4          (0x2u << 4)
-#define ADS1263_MODE2_GAIN_8          (0x3u << 4)
-#define ADS1263_MODE2_GAIN_16         (0x4u << 4)
-#define ADS1263_MODE2_GAIN_32         (0x5u << 4)
 
 /* PGA Bypass Bit */
 #define ADS1263_MODE2_PGA_BYPASS      BIT(7)
+
+// MODE 0 Configuration Register (Bit7 REFREV, Bit6 RUNMODE, Bit5:3 - DELAY, Bit2:1 - CHOP, Bit0 - RESERVED)
+
+/* Continuous Conversion */
+#define ADS1263_MODE0_RUNMODE_CONTINUOUS    (0U << 6)
+
+/* Pulse Conversion */
+#define ADS1263_MODE0_RUNMODE_PULSE         (1U << 6)
+
+#define ADS1263_MODE0_DELAY_0US             (0U << 3)
+#define ADS1263_MODE0_DELAY_8US7            (1U << 3)
+#define ADS1263_MODE0_DELAY_17US            (2U << 3)
+#define ADS1263_MODE0_DELAY_35US            (3U << 3)
+#define ADS1263_MODE0_DELAY_69US            (4U << 3)
+#define ADS1263_MODE0_DELAY_139US           (5U << 3)
+#define ADS1263_MODE0_DELAY_278US           (6U << 3)
+#define ADS1263_MODE0_DELAY_555US           (7U << 3)
+
+#define ADS1263_MODE0_CHOP_DISABLE          (0U << 1)
+#define ADS1263_MODE0_CHOP_ENABLE           (1U << 1)
+
+// MODE 1 Configuration Register ( Bit7:5 Filter, Bit4:2 SBMAG, Bit1 - SBPOL, Bit0 - RESERVED)
+
+#define ADS1263_MODE1_FILTER_SINC1          (0U << 5)
+#define ADS1263_MODE1_FILTER_SINC2          (1U << 5)
+#define ADS1263_MODE1_FILTER_SINC3          (2U << 5)
+#define ADS1263_MODE1_FILTER_SINC4          (3U << 5)
+#define ADS1263_MODE1_FILTER_FIR            (4U << 5)
+
+#define ADS1263_MODE1_BCS_OFF               (0U << 2)
+#define ADS1263_MODE1_BCS_50NA              (1U << 2)
+#define ADS1263_MODE1_BCS_200NA             (2U << 2)
+#define ADS1263_MODE1_BCS_1UA               (3U << 2)
+#define ADS1263_MODE1_BCS_10UA              (4U << 2)
+
+#define ADS1263_MODE1_POL_NEGATIVE          (0U << 1)
+#define ADS1263_MODE1_POL_POSITIVE          (1U << 1)
+
+// MODE 2 Configuration Register  
+
+#define ADS1263_MODE2_GAIN_1                (0U << 4)
+#define ADS1263_MODE2_GAIN_2                (1U << 4)
+#define ADS1263_MODE2_GAIN_4                (2U << 4)
+#define ADS1263_MODE2_GAIN_8                (3U << 4)
+#define ADS1263_MODE2_GAIN_16               (4U << 4)
+#define ADS1263_MODE2_GAIN_32               (5U << 4)
+
+#define ADS1263_MODE2_DR_2P5                (0U  << 0)
+#define ADS1263_MODE2_DR_5                  (1U  << 0)
+#define ADS1263_MODE2_DR_10                 (2U  << 0)
+#define ADS1263_MODE2_DR_16P6               (3U  << 0)
+#define ADS1263_MODE2_DR_20                 (4U  << 0)
+#define ADS1263_MODE2_DR_50                 (5U  << 0)
+#define ADS1263_MODE2_DR_60                 (6U  << 0)
+#define ADS1263_MODE2_DR_100                (7U  << 0)
+#define ADS1263_MODE2_DR_400                (8U  << 0)
+#define ADS1263_MODE2_DR_1200               (9U  << 0)
+#define ADS1263_MODE2_DR_2400               (10U << 0)
+#define ADS1263_MODE2_DR_4800               (11U << 0)
+#define ADS1263_MODE2_DR_7200               (12U << 0)
+#define ADS1263_MODE2_DR_14400              (13U << 0)
+#define ADS1263_MODE2_DR_19200              (14U << 0)
+#define ADS1263_MODE2_DR_38400              (15U << 0)
+
+// REFMUX Register (Bits7:4  RMUXP, Bits3:0  RMUXN)
+#define ADS1263_REFMUX_P_INT_2_5V              (0U << 3)
+#define ADS1263_REFMUX_P_EXT_AIN0              (1U << 3)
+#define ADS1263_REFMUX_P_EXT_AIN2              (2U << 3)
+#define ADS1263_REFMUX_P_EXT_AIN4              (3U << 3)
+#define ADS1263_REFMUX_P_INT_AVDD              (4U << 3)
+
+#define ADS1263_REFMUX_N_INT_2_5V              (0U << 0)
+#define ADS1263_REFMUX_N_EXT_AIN0              (1U << 0)
+#define ADS1263_REFMUX_N_EXT_AIN2              (2U << 0)
+#define ADS1263_REFMUX_N_EXT_AIN4              (3U << 0)
+#define ADS1263_REFMUX_N_INT_AVSS              (4U << 0)
 
 #ifdef __cplusplus
 }

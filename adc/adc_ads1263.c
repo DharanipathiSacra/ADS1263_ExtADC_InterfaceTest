@@ -52,9 +52,9 @@
 #define ADS1263_REG_FSCAL0    0x0A
 #define ADS1263_REG_FSCAL1    0x0B
 #define ADS1263_REG_FSCAL2    0x0C
-#define ADS1263_REG_IDACMUX  0x0D
-#define ADS1263_REG_IDACMAG  0x0E
-#define ADS1263_REG_REFMUX   0x0F
+#define ADS1263_REG_IDACMUX   0x0D
+#define ADS1263_REG_IDACMAG   0x0E
+#define ADS1263_REG_REFMUX    0x0F
 
 #define ADS1263_INTERFACE_STATUS_ENABLE BIT(2)
 #define ADS1263_INTERFACE_CRC_MASK      0x03
@@ -519,9 +519,8 @@ static int ads1263_read_data(const struct device *dev, int32_t *sample)
 
 	if (status_enable) {
 
-		uint8_t status = rx_buf[data_index];
+		// uint8_t status = rx_buf[data_index];
 		uint8_t command_status = rx_buf[0];
-
 
 		LOG_DBG("command_status = 0x%02X", command_status);
 
@@ -641,30 +640,30 @@ static int ads1263_reset(const struct device *dev)
 static int ads1263_init(const struct device *dev)
 {
 	struct ads1263_data *data = dev->data;
+	const struct ads1263_config *config = dev->config;
+
+	uint8_t id;
+	uint8_t device;
+	int ret;
 
 	k_mutex_init(&data->lock);
 
-	int ret;
-
-	const struct ads1263_config *config = dev->config;
-
-	/* Check SPI bus readiness */
+	/*-----------------------------------------------------------
+	 * Verify peripherals
+	 *----------------------------------------------------------*/
 
 	if (!spi_is_ready_dt(&config->bus)) {
-		LOG_ERR("%s: SPI device is not ready", dev->name);
+		LOG_ERR("SPI not ready");
 		return -ENODEV;
 	}
 
-	/* Configure DRDY GPIO */
-	if (!device_is_ready(config->drdy.port)) {
-		LOG_ERR("DRDY GPIO port not ready");
+	if (!gpio_is_ready_dt(&config->drdy)) {
+		LOG_ERR("DRDY GPIO not ready");
 		return -ENODEV;
 	}
 
 	ret = gpio_pin_configure_dt(&config->drdy, GPIO_INPUT);
-
-	if (ret < 0) {
-		LOG_ERR("Failed to configure DRDY GPIO: %d", ret);
+	if (ret) {
 		return ret;
 	}
 
@@ -674,107 +673,139 @@ static int ads1263_init(const struct device *dev)
 			return -ENODEV;
 		}
 
-		ret = gpio_pin_configure_dt(&config->reset, GPIO_OUTPUT_ACTIVE);
-
+		ret = gpio_pin_configure_dt(&config->reset, (GPIO_OUTPUT_HIGH));
 		if (ret) {
-			LOG_ERR("Failed to configure RESET GPIO: %d", ret);
 			return ret;
 		}
 	}
 
-	// if (config->start.port != NULL) {
+	gpio_pin_set_dt(&config->reset, 1);
 
-	// 	if (!gpio_is_ready_dt(&config->start)) {
-
-	// 		return -ENODEV;
-	// 	}
-
-	// 	ret = gpio_pin_configure_dt(&config->start, GPIO_OUTPUT_INACTIVE);
-
-	// 	if (ret) {
-	// 		LOG_ERR("Failed to configure START GPIO: %d", ret);
-	// 		return ret;
-	// 	}
-	// }
+	/*-----------------------------------------------------------
+	 * Reset device
+	 *----------------------------------------------------------*/
 
 	ret = ads1263_reset(dev);
-
 	if (ret) {
 		LOG_ERR("Failed to reset ADS1263");
 		return ret;
 	}
 
-	uint8_t id;
+	/*-----------------------------------------------------------
+	 * Read and validate device ID
+	 *----------------------------------------------------------*/
 
 	ret = ads1263_read_reg(dev, ADS1263_REG_ID, &id);
-
 	if (ret) {
-		LOG_ERR("Cannot read ID register");
+		LOG_ERR("Unable to read ID register");
 		return ret;
 	}
 
-	uint8_t device = (id >> 5) & 0x07;
+	device = (id >> 5) & 0x07;
 
-	switch (device) {
-
-	case 0:
-		LOG_INF("ADS1262 detected");
-		break;
-
-	case 1:
-		LOG_INF("ADS1263 detected");
-		break;
-
-	default:
-		LOG_ERR("Unknown device ID %u, ID Raw 0x%02X", device, id);
+	if (device != 1U) {
+		LOG_ERR("ADS1263 not detected. ID=0x%02X", id);
 		return -ENODEV;
 	}
 
+	LOG_INF("ADS1263 detected");
+
 	data->device_id = device;
 
+	/*-----------------------------------------------------------
+	 * Stop ADC1 before configuration
+	 *----------------------------------------------------------*/
+
+	ret = ads1263_send_command(dev, ADS1263_CMD_STOP1);
+	if (ret) {
+		return ret;
+	}
+
+	/*-----------------------------------------------------------
+	 * MODE2
+	 *
+	 * Gain = 1
+	 * Data Rate = 400 SPS
+	 *----------------------------------------------------------*/
+
+	ret = ads1263_write_reg(dev, ADS1263_REG_MODE2,
+				(ADS1263_MODE2_GAIN_1 | ADS1263_MODE2_DR_400));
+	if (ret) {
+		return ret;
+	}
+
+	/*-----------------------------------------------------------
+	 * REFMUX
+	 *
+	 * Internal reference
+	 * REFP0 / REFN0
+	 *----------------------------------------------------------*/
+
+	ret = ads1263_write_reg(dev, ADS1263_REG_REFMUX,
+				ADS1263_REFMUX_P_INT_2_5V | ADS1263_REFMUX_N_INT_AVSS);
+	if (ret) {
+		return ret;
+	}
+
+	/*-----------------------------------------------------------
+	 * MODE0
+	 *
+	 * Continuous Conversion
+	 * Delay = 35us
+	 * Chop Disabled
+	 *----------------------------------------------------------*/
+
+	ret = ads1263_write_reg(dev, ADS1263_REG_MODE0,
+				(ADS1263_MODE0_RUNMODE_CONTINUOUS | ADS1263_MODE0_DELAY_35US));
+	if (ret) {
+		return ret;
+	}
+
+	/*-----------------------------------------------------------
+	 * MODE1
+	 *
+	 * FIR Filter
+	 *----------------------------------------------------------*/
+
+	ret = ads1263_write_reg(dev, ADS1263_REG_MODE1, ADS1263_MODE1_FILTER_FIR);
+	if (ret) {
+		return ret;
+	}
+
+	/*-----------------------------------------------------------
+	 * Enable Status byte
+	 *----------------------------------------------------------*/
+
+	ret = ads1263_write_reg(dev, ADS1263_REG_INTERFACE, ADS1263_INTERFACE_STATUS_ENABLE);
+
+	if (ret) {
+		return ret;
+	}
+
+	ret = ads1263_read_reg(dev, ADS1263_REG_INTERFACE, &data->interface_reg);
+
+	if (ret) {
+		return ret;
+	}
+
+	/*-----------------------------------------------------------
+	 * Start ADC1
+	 *----------------------------------------------------------*/
+
+	ret = ads1263_send_command(dev, ADS1263_CMD_START1);
+	if (ret) {
+		return ret;
+	}
+
 	data->initialized = true;
-
 	data->config_dirty = true;
-
 	data->cached_mode2 = 0xFF;
-
 	data->cached_inpmux = 0xFF;
 
-	// TDAC ADS1263_TDAC_4V500000, ADS1263_TDAC_3V500000, ADS1263_TDAC_1V500000,
-	// ADS1263_TDAC_2V500000, ADS1263_TDAC_0V500000
-
-	// ads1263_configure_tdac(dev, true, 1, ADS1263_TDAC_1V500000);
-
-	ret = ads1263_update_reg(dev, ADS1263_REG_INTERFACE, 0xFF, 0x04);
-
-	if (ret) {
-		return ret;
-	}
-
-	ads1263_read_reg(dev, ADS1263_REG_INTERFACE, &data->interface_reg);
-
-	ret = ads1263_update_reg(dev, ADS1263_REG_MODE0, 0xFF, 0x00);
-
-	if (ret) {
-		return ret;
-	}
-
-	ret = ads1263_update_reg(dev, ADS1263_REG_MODE0, 0xFF, 0x00);
-
-	if (ret) {
-		return ret;
-	}
-
-	ret = ads1263_update_reg(dev, ADS1263_REG_MODE1, 0xFF, 0x00);
-
-	if (ret) {
-		return ret;
-	}
-
-	ret = ads1263_update_reg(dev, ADS1263_REG_MODE2, 0xFF, 0x00);
-
-	if (ret) {
-		return ret;
+	for (uint8_t reg = 1; reg <= 0x1B; ++reg) {
+		uint8_t value;
+		ads1263_read_reg(dev, reg, &value);
+		LOG_INF("REG %02X = %02X", reg, value);
 	}
 
 	LOG_INF("ADS1263 initialization complete Interface Reg=0x%02X", data->interface_reg);
@@ -897,7 +928,6 @@ static int ads1263_read(const struct device *dev, const struct adc_sequence *seq
 	// 	data->config_dirty = false;
 	// }
 
-
 	uint8_t gain_cfg;
 	uint32_t gain_value;
 
@@ -911,13 +941,6 @@ static int ads1263_read(const struct device *dev, const struct adc_sequence *seq
 
 	if (ret) {
 		return ret;
-	}
-
-	for (uint8_t reg=1; reg<=0x1B; ++reg)
-	{
-		uint8_t value;
-		ads1263_read_reg(dev, reg, &value);
-		LOG_INF("REG %02X = %02X", reg, value);
 	}
 
 	ret = ads1263_send_command(dev, ADS1263_CMD_START1);
@@ -938,6 +961,8 @@ static int ads1263_read(const struct device *dev, const struct adc_sequence *seq
 		return ret;
 	}
 
+	ret = ads1263_send_command(dev, ADS1263_CMD_START1);
+
 	ret = ads1263_wait_drdy(dev);
 	if (ret) {
 		return ret;
@@ -949,6 +974,12 @@ static int ads1263_read(const struct device *dev, const struct adc_sequence *seq
 	if (ret) {
 		return ret;
 	}
+
+	// for (uint8_t reg = 1; reg <= 0x1B; ++reg) {
+	// 	uint8_t value;
+	// 	ads1263_read_reg(dev, reg, &value);
+	// 	LOG_INF("REG %02X = %02X", reg, value);
+	// }
 
 	if (sequence->buffer == NULL) {
 		return -EINVAL;
