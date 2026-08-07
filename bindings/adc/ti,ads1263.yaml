@@ -35,12 +35,6 @@ properties:
     description: |
       Optional hardware RESET pin.
 
-  start-gpios:
-    type: phandle-array
-    description: |
-      Optional START pin.
-      If omitted, conversions are controlled using SPI START1/STOP1 commands.
-
   avdd-supply:
     type: phandle
     description: Analog supply regulator.
