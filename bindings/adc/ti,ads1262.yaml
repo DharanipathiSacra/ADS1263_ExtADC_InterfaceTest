@@ -1,8 +1,8 @@
 # Copyright 2026 Sacra Systems Private Limited
 # SPDX-License-Identifier: Apache-2.0
 
-description: Texas Instruments ADS1263 32-bit and 24-bit Dual ADC
+description: Texas Instruments ADS1262 32-bit ADC
 
-compatible: "ti,ads1263"
+compatible: "ti,ads1262"
 
 include: ti,ads126x-common.yaml

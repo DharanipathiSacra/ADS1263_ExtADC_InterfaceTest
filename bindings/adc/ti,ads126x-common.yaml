@@ -1,0 +1,30 @@
+# Copyright 2026 Sacra Systems Private Limited
+# SPDX-License-Identifier: Apache-2.0
+
+description: Texas Instruments ADS126x series common ADC properties
+
+include: [adc-controller.yaml, spi-device.yaml]
+#include:
+#  - spi-device.yaml
+
+properties:
+  reg:
+    required: true
+
+  spi-max-frequency:
+    type: int
+    required: true
+    description: |
+      Maximum SPI clock frequency in Hz.
+
+  drdy-gpios:
+    type: phandle-array
+    required: true
+    description: |
+      Data ready pin, active low.
+      The driver waits for this signal before reading conversion data.
+
+  reset-gpios:
+    type: phandle-array
+    description: |
+      Optional hardware RESET pin, active low.
