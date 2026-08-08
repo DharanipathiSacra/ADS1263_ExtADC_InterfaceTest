@@ -12,7 +12,7 @@
 #include <zephyr/drivers/gpio.h>
 #include <zephyr/drivers/adc.h>
 #include <zephyr/logging/log.h>
-#include <zephyr/drivers/adc/ads1263.h>
+#include <zephyr/drivers/adc/ads126x.h>
 
 #define ADS1263_ADC1_RESOLUTION 32U
 #define ADS1263_REF_INTERNAL    2500 /*< Internal reference voltage in mV */
@@ -107,16 +107,26 @@
 
 #define ADS1263_TDAC_LEVEL(x) ((x) & 0x1F)
 
+#define ADS126X_ADC2_OFFSET 16
+#define ADS126X_IS_ADC2(ch) ((ch) >= ADS126X_ADC2_OFFSET)
+#define ADS126X_HW_CH(ch)   ((ch) & 0x0F)
+
 LOG_MODULE_REGISTER(adc_ads1263, CONFIG_ADC_LOG_LEVEL);
 
-struct ads1263_config {
+enum ads126x_variant {
+	ADS126X_VARIANT_1262,
+	ADS126X_VARIANT_1263
+};
+
+struct ads126x_config {
 
 	struct spi_dt_spec bus;
 	struct gpio_dt_spec drdy;
 	struct gpio_dt_spec reset;
+	enum ads126x_variant variant;
 };
 
-struct ads1263_data {
+struct ads126x_data {
 
 	struct k_mutex lock;
 
@@ -156,9 +166,9 @@ struct ads1263_data {
 
 static int ads1263_spi_write(const struct device *dev, const uint8_t *tx_buf, size_t len)
 {
-	const struct ads1263_config *config = dev->config;
+	const struct ads126x_config *config = dev->config;
 
-	struct ads1263_data *data = dev->data;
+	struct ads126x_data *data = dev->data;
 
 	k_mutex_lock(&data->lock, K_FOREVER);
 
@@ -182,9 +192,9 @@ static int ads1263_spi_write(const struct device *dev, const uint8_t *tx_buf, si
 static int ads1263_spi_transceive(const struct device *dev, const uint8_t *tx_buf, uint8_t *rx_buf,
 				  size_t len)
 {
-	const struct ads1263_config *config = dev->config;
+	const struct ads126x_config *config = dev->config;
 
-	struct ads1263_data *data = dev->data;
+	struct ads126x_data *data = dev->data;
 
 	k_mutex_lock(&data->lock, K_FOREVER);
 
@@ -390,7 +400,7 @@ static int ads1263_select_channel(const struct device *dev, uint8_t positive, ui
 
 static int ads1263_wait_drdy(const struct device *dev)
 {
-	const struct ads1263_config *config = dev->config;
+	const struct ads126x_config *config = dev->config;
 
 	uint32_t elapsed = 0U;
 
@@ -411,8 +421,8 @@ static int ads1263_wait_drdy(const struct device *dev)
 
 static int ads1263_read_data(const struct device *dev, int32_t *sample)
 {
-	const struct ads1263_config *config = dev->config;
-	const struct ads1263_data *data = dev->data;
+	const struct ads126x_config *config = dev->config;
+	const struct ads126x_data *data = dev->data;
 
 	uint8_t tx_buf[8] = {0};
 	uint8_t rx_buf[8] = {0};
@@ -563,7 +573,7 @@ static int ads1263_adc_config_gain(enum adc_gain gain, uint8_t *gain_config, uin
 
 static int ads1263_reset(const struct device *dev)
 {
-	const struct ads1263_config *config = dev->config;
+	const struct ads126x_config *config = dev->config;
 
 	if (config->reset.port == NULL) {
 		return 0;
@@ -580,10 +590,10 @@ static int ads1263_reset(const struct device *dev)
 	return 0;
 }
 
-static int ads1263_init(const struct device *dev)
+static int ads126x_init(const struct device *dev)
 {
-	struct ads1263_data *data = dev->data;
-	const struct ads1263_config *config = dev->config;
+	struct ads126x_data *data = dev->data;
+	const struct ads126x_config *config = dev->config;
 
 	uint8_t id;
 	uint8_t device;
@@ -740,7 +750,7 @@ static int ads1263_channel_setup(const struct device *dev,
 {
 	/* Validate channel ID */
 
-	struct ads1263_data *data = dev->data;
+	struct ads126x_data *data = dev->data;
 
 	if (!data->initialized) {
 		return -EIO;
@@ -789,7 +799,7 @@ static int ads1263_channel_setup(const struct device *dev,
 
 static int ads1263_read(const struct device *dev, const struct adc_sequence *sequence)
 {
-	struct ads1263_data *data = dev->data;
+	struct ads126x_data *data = dev->data;
 
 	int ret = ads1263_send_command(dev, ADS1263_CMD_STOP1);
 
@@ -921,25 +931,30 @@ static int ads1263_read(const struct device *dev, const struct adc_sequence *seq
 	return ret;
 }
 
-static DEVICE_API(adc, ads1263_driver_api) = {
+static DEVICE_API(adc, ads126x_driver_api) = {
 	.channel_setup = ads1263_channel_setup,
 	.read = ads1263_read,
 	.ref_internal = ADS1263_REF_INTERNAL,
 };
 
-#define ADS1263_INIT(inst)                                                                         \
-	static struct ads1263_data data_##inst;                                                    \
-                                                                                                   \
-	static const struct ads1263_config config_##inst = {                                       \
+#define ADS126X_INIT(inst, var)                                                                    \
+	static struct ads126x_data data_##inst;                                                    \
+	static const struct ads126x_config config_##inst = {                                       \
 		.bus = SPI_DT_SPEC_INST_GET(inst,                                                  \
 					    SPI_WORD_SET(8) | SPI_TRANSFER_MSB | SPI_MODE_CPHA),   \
-                                                                                                   \
 		.drdy = GPIO_DT_SPEC_INST_GET(inst, drdy_gpios),                                   \
-                                                                                                   \
 		.reset = GPIO_DT_SPEC_INST_GET_OR(inst, reset_gpios, {0}),                         \
+		.variant = var,                                                                    \
 	};                                                                                         \
-                                                                                                   \
-	DEVICE_DT_INST_DEFINE(inst, ads1263_init, NULL, &data_##inst, &config_##inst, POST_KERNEL, \
-			      CONFIG_KERNEL_INIT_PRIORITY_DEVICE, &ads1263_driver_api);
+	DEVICE_DT_INST_DEFINE(inst, ads126x_init, NULL, &data_##inst, &config_##inst, POST_KERNEL, \
+			      CONFIG_KERNEL_INIT_PRIORITY_DEVICE, &ads126x_driver_api);
 
-DT_INST_FOREACH_STATUS_OKAY(ADS1263_INIT)
+#undef DT_DRV_COMPAT
+#define DT_DRV_COMPAT      ti_ads1262
+#define INST_ADS1262(inst) ADS126X_INIT(inst, ADS126X_VARIANT_1262)
+DT_INST_FOREACH_STATUS_OKAY(INST_ADS1262)
+
+#undef DT_DRV_COMPAT
+#define DT_DRV_COMPAT      ti_ads1263
+#define INST_ADS1263(inst) ADS126X_INIT(inst, ADS126X_VARIANT_1263)
+DT_INST_FOREACH_STATUS_OKAY(INST_ADS1263)
