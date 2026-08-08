@@ -82,6 +82,13 @@ extern "C" {
 /* Gain Field Mask (Bits 6:4) */
 #define ADS1263_MODE2_GAIN_MASK        0x70u
 
+/* PGA Gain */
+// #define ADS1263_MODE2_GAIN_1          (0x0u << 4)
+// #define ADS1263_MODE2_GAIN_2          (0x1u << 4)
+// #define ADS1263_MODE2_GAIN_4          (0x2u << 4)
+// #define ADS1263_MODE2_GAIN_8          (0x3u << 4)
+// #define ADS1263_MODE2_GAIN_16         (0x4u << 4)
+// #define ADS1263_MODE2_GAIN_32         (0x5u << 4)
 
 /* PGA Bypass Bit */
 #define ADS1263_MODE2_PGA_BYPASS      BIT(7)
