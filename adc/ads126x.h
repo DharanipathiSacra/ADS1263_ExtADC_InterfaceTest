@@ -26,6 +26,11 @@ extern "C" {
  * @{
  */
 
+enum ads126x_chip_id {
+    ADS126X_CHIP_ADS1262 = 0,
+    ADS126X_CHIP_ADS1263 = 1,
+};
+
 /** ADC resolution in bits */
 #define ADS1263_RESOLUTION 32u
 /** Number of input channels */
