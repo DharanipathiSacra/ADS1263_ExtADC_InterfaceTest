@@ -1,8 +1,52 @@
 # Copyright 2026 Sacra Systems Private Limited
 # SPDX-License-Identifier: Apache-2.0
+#
+# Device-tree binding for the Texas Instruments ADS1262.
+#
+# ADS1262 — 32-bit 38.4 kSPS single-channel delta-sigma ADC
+#   • ADC1: 32-bit, up to 38.4 kSPS, 10-channel MUX, PGA (1..32)
+#   • No ADC2, no GPIO, no AC excitation, no TDAC
+#   • SPI interface, DRDY interrupt output
+#
 
-description: Texas Instruments ADS1262 32-bit ADC
+description: Texas Instruments ADS1262 32-bit Precision ADC
 
 compatible: "ti,ads1262"
 
-include: ti,ads126x-common.yaml
+include:
+  - name: spi-device.yaml
+  - name: ti,ads126x-common.yaml
+    property-blocklist:
+      # ADC2 properties are not applicable to ADS1262
+      - adc2-data-rate
+      - adc2-gain
+      - adc2-ref-mux
+
+properties:
+  chip-id:
+    type: int
+    const: 0        # ADS126X_CHIP_ADS1262 = 0  (set fixed by this binding)
+    description: |
+      Identifies the chip variant to the driver.  Fixed to 0 (ADS1262).
+      Do not override.
+
+# Example DTS node:
+#
+# &spi1 {
+#     cs-gpios = <&gpioa 4 GPIO_ACTIVE_LOW>;
+#
+#     ads1262: adc@0 {
+#         compatible = "ti,ads1262";
+#         reg = <0>;
+#         spi-max-frequency = <10000000>;
+#
+#         drdy-gpios  = <&gpiob 0 GPIO_ACTIVE_LOW>;
+#         reset-gpios = <&gpiob 1 GPIO_ACTIVE_LOW>;
+#
+#         internal-vref;
+#         adc1-data-rate = <6>;   /* 60 SPS */
+#         adc1-gain      = <0>;   /* 1x    */
+#         adc1-filter    = <4>;   /* FIR   */
+#         status-byte;
+#     };
+# };

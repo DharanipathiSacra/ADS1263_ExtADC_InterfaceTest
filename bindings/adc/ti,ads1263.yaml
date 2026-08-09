@@ -1,8 +1,134 @@
 # Copyright 2026 Sacra Systems Private Limited
 # SPDX-License-Identifier: Apache-2.0
+#
+# Device-tree binding for the Texas Instruments ADS1263.
 
-description: Texas Instruments ADS1263 32-bit and 24-bit Dual ADC
+# ADS1263 — 32-bit + 24-bit dual ADC precision converter
+#   • ADC1: 32-bit, up to 38.4 kSPS, 10-channel MUX, PGA (1..32)
+#   • ADC2: 24-bit, up to 800 SPS, 8-channel MUX, PGA (1..128)
+#   • 4x programmable GPIO (GP0..GP3)
+#   • 2x on-chip TDAC outputs (TDACP/TDACN)
+#   • AC excitation source (IDAC) with ACEX bit in ADC2CFG
+#   • SPI interface, DRDY interrupt output
+#
+# Key differences vs ADS1262:
+#   +  ADC2 (24-bit, 800 SPS max, own MUX + gain + reference)
+#   +  GPIO control registers (GPIOCON, GPIODIR, GPIODAT)
+#   +  TDACP / TDACN registers (on-chip DAC for excitation)
+#   +  AC excitation control bit (ADC2CFG.AC_EXCITE)
+#   +  ADC2 calibration commands (SYOCAL2, SYGCAL2, SFOCAL2)
+#   -  Same ADC1 core as ADS1262
+
+description: Texas Instruments ADS1263 32-bit + 24-bit Dual ADC
 
 compatible: "ti,ads1263"
 
-include: ti,ads126x-common.yaml
+include:
+  - name: spi-device.yaml
+  - name: ti,ads126x-common.yaml
+
+properties:
+  chip-id:
+    type: int
+    const: 1
+    description: |
+      Identifies the chip variant to the driver.  Fixed to 1 (ADS1263).
+      Do not override.
+
+  # ------------------------------------------------------------------
+  # ADC2 configuration (ADS1263 only)
+  # ------------------------------------------------------------------
+  adc2-data-rate:
+    type: int
+    default: 0
+    description: |
+      ADC2 output data rate.  Written to ADC2CFG[1:0].
+        0 = 10 SPS   (default)
+        1 = 100 SPS
+        2 = 400 SPS
+        3 = 800 SPS
+
+  adc2-gain:
+    type: int
+    default: 0
+    description: |
+      ADC2 PGA gain.  Written to ADC2CFG[4:2].
+        0 = 1    (default)
+        1 = 2
+        2 = 4
+        3 = 8
+        4 = 16
+        5 = 32
+        6 = 64
+        7 = 128   (ADC2 supports up to 128x, unlike ADC1)
+
+  adc2-ref-mux:
+    type: int
+    default: 0
+    description: |
+      ADC2 reference selection.  Written to ADC2CFG[7:5].
+        0 = Internal 2.5 V reference   (default)
+        1 = AIN0 / AIN1 external
+        2 = AIN2 / AIN3 external
+        3 = AIN4 / AIN5 external
+        4 = AVDD / AVSS supply rail
+
+  # ------------------------------------------------------------------
+  # TDAC configuration (optional, ADS1263 only)
+  # ------------------------------------------------------------------
+  tdacp-magnitude:
+    type: int
+    default: 0
+    description: |
+      TDACP output voltage setting (TDACP register).
+      These are excitation DAC outputs connected to AINCOM and AIN0
+      for AC excitation source support.
+        0x00 = TDACP off  (default)
+      Refer to Table 30 of the ADS1263 datasheet for encoding.
+
+  tdacn-magnitude:
+    type: int
+    default: 0
+    description: |
+      TDACN output voltage setting (TDACN register).
+        0x00 = TDACN off  (default)
+
+  # ------------------------------------------------------------------
+  # AC excitation (ADS1263 only)
+  # ------------------------------------------------------------------
+  ac-excitation:
+    type: boolean
+    description: |
+      Enable the AC excitation source.  Sets ADC2CFG.AC_EXCITE = 1.
+      When enabled the ADC2 alternates between positive and negative
+      IDAC phases to reject DC offset errors in resistive sensors.
+
+# Example DTS node:
+#
+# &spi1 {
+#     cs-gpios = <&gpioa 4 GPIO_ACTIVE_LOW>;
+#
+#     ads1263: adc@0 {
+#         compatible = "ti,ads1263";
+#         reg = <0>;
+#         spi-max-frequency = <10000000>;
+#
+#         drdy-gpios  = <&gpiob 0 GPIO_ACTIVE_LOW>;
+#         reset-gpios = <&gpiob 1 GPIO_ACTIVE_LOW>;
+#
+#         internal-vref;
+#
+#         /* ADC1 */
+#         adc1-data-rate = <6>;   /* 60 SPS */
+#         adc1-gain      = <0>;   /* 1x    */
+#         adc1-filter    = <4>;   /* FIR   */
+#
+#         /* ADC2 */
+#         adc2-data-rate = <0>;   /* 10 SPS */
+#         adc2-gain      = <4>;   /* 16x   */
+#         adc2-ref-mux   = <0>;   /* 2.5V int ref */
+#
+#         status-byte;
+#         crc-mode = <2>;         /* CRC-8 */
+#     };
+# };

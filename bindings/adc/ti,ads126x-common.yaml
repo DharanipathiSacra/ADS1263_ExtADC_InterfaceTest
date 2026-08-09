@@ -1,30 +1,143 @@
 # Copyright 2026 Sacra Systems Private Limited
 # SPDX-License-Identifier: Apache-2.0
-
-description: Texas Instruments ADS126x series common ADC properties
-
-include: [adc-controller.yaml, spi-device.yaml]
-#include:
-#  - spi-device.yaml
+#
+# Common binding properties for the TI ADS1262 / ADS1263 ADC family.
+# Included by ti,ads1262.yaml and ti,ads1263.yaml — do not use directly.
 
 properties:
+
+  # ------------------------------------------------------------------
+  # SPI bus (required)
+  # ------------------------------------------------------------------
   reg:
     required: true
 
   spi-max-frequency:
-    type: int
     required: true
-    description: |
-      Maximum SPI clock frequency in Hz.
+    # ADS126x supports up to 8 MHz
 
+  # ------------------------------------------------------------------
+  # Optional control GPIOs
+  # ------------------------------------------------------------------
   drdy-gpios:
     type: phandle-array
-    required: true
     description: |
-      Data ready pin, active low.
-      The driver waits for this signal before reading conversion data.
+      Active-low DRDY interrupt output from the ADC.
+      When asserted (low), a conversion result is ready.
+      If omitted, the driver polls with a fixed delay.
 
   reset-gpios:
     type: phandle-array
     description: |
-      Optional hardware RESET pin, active low.
+      Active-low hardware /RESET line.  When present the driver
+      asserts this GPIO for ≥10 µs during init.
+      If omitted a software RESET command is issued instead.
+
+  # ------------------------------------------------------------------
+  # Voltage reference
+  # ------------------------------------------------------------------
+  internal-vref:
+    type: boolean
+    default: true
+    description: |
+      Enable the on-chip 2.5 V precision reference (POWER.INTREF = 1).
+      When true, vref-mv is ignored.  Default: false (use external ref).
+
+  vref-mv:
+    type: int
+    default: 2500
+    description: |
+      External reference voltage in millivolts.
+      Used only when internal-vref is false.
+      Typical: 2500 (2.5 V), 5000 (5 V for AVDD reference).
+
+  # ------------------------------------------------------------------
+  # ADC1 configuration
+  # ------------------------------------------------------------------
+
+  adc1-data-rate:
+    type: int
+    default: 8
+    description: |
+      ADC1 output data rate.  Written to MODE2[3:0].
+      Values (decimal) correspond to:
+        0  = 2.5 SPS       (SINC4/FIR optimal)
+        1  = 5 SPS
+        2  = 10 SPS
+        3  = 16.6 SPS
+        4  = 20 SPS
+        5  = 50 SPS
+        6  = 60 SPS  (default – mains-frequency rejection)
+        7  = 100 SPS
+        8  = 400 SPS
+        9  = 1200 SPS
+        10 = 2400 SPS
+        11 = 4800 SPS
+        12 = 7200 SPS
+        13 = 14400 SPS
+        14 = 19200 SPS
+        15 = 38400 SPS
+
+  adc1-gain:
+    type: int
+    default: 0
+    description: |
+      ADC1 PGA gain setting.  Written to MODE2[6:4].
+        0 = 1   (default)
+        1 = 2
+        2 = 4
+        3 = 8
+        4 = 16
+        5 = 32
+
+  adc1-filter:
+    type: int
+    default: 4
+    description: |
+      ADC1 digital filter.  Written to MODE1[7:5].
+        0 = SINC1
+        1 = SINC2
+        2 = SINC3
+        3 = SINC4
+        4 = FIR   (default – lowest noise at low ODR)
+
+  adc1-pga-bypass:
+    type: boolean
+    default: true
+    description: |
+      Bypass the ADC1 PGA (MODE2.BYPASS = 1).
+      Reduces noise and input impedance constraints at the cost
+      of fixed unity gain.
+
+  adc1-ref-mux:
+    type: int
+    default: 0
+    description: |
+      ADC1 reference multiplexer.  Written to REFMUX[5:0].
+      Bit [5:3] = RMUXP, bit [2:0] = RMUXN.
+      Common values (positive/negative pair encoded together):
+        0x00 = Internal 2.5 V reference P and N  (default)
+        0x09 = AIN0(P) / AIN1(N) external reference
+        0x12 = AIN2(P) / AIN3(N) external reference
+        0x1B = AIN4(P) / AIN5(N) external reference
+        0x24 = AVDD(P) / AVSS(N) supply as reference
+
+  # ------------------------------------------------------------------
+  # SPI interface options
+  # ------------------------------------------------------------------
+  status-byte:
+    type: boolean
+    default: true
+    description: |
+      Enable the status byte prepended to each RDATA frame
+      (INTERFACE.STATUS = 1).  The status byte reports alarms
+      and ADC-ready flags.  Recommended when using interrupts.
+
+  crc-mode:
+    type: int
+    default: 0
+    description: |
+      Data integrity mode for RDATA frames.  Written to INTERFACE[1:0].
+        0 = Disabled  (default – fastest, no overhead)
+        1 = Checksum  (simple byte sum, low overhead)
+        2 = CRC-8     (strongest, 1 extra byte per frame)
