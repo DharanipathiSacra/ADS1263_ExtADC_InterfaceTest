@@ -14,7 +14,7 @@ properties:
 
   spi-max-frequency:
     required: true
-    # ADS126x supports up to 8 MHz
+    # ADS126x supports up to 20 MHz
 
   # ------------------------------------------------------------------
   # Optional control GPIOs
@@ -38,7 +38,6 @@ properties:
   # ------------------------------------------------------------------
   internal-vref:
     type: boolean
-    default: true
     description: |
       Enable the on-chip 2.5 V precision reference (POWER.INTREF = 1).
       When true, vref-mv is ignored.  Default: false (use external ref).
@@ -57,7 +56,7 @@ properties:
 
   adc1-data-rate:
     type: int
-    default: 8
+    default: 6
     description: |
       ADC1 output data rate.  Written to MODE2[3:0].
       Values (decimal) correspond to:
@@ -103,7 +102,6 @@ properties:
 
   adc1-pga-bypass:
     type: boolean
-    default: true
     description: |
       Bypass the ADC1 PGA (MODE2.BYPASS = 1).
       Reduces noise and input impedance constraints at the cost
@@ -127,7 +125,6 @@ properties:
   # ------------------------------------------------------------------
   status-byte:
     type: boolean
-    default: true
     description: |
       Enable the status byte prepended to each RDATA frame
       (INTERFACE.STATUS = 1).  The status byte reports alarms
