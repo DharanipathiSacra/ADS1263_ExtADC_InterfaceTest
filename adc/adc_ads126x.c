@@ -177,7 +177,7 @@ struct ads126x_data {
 	uint8_t cached_inpmux;
 };
 
-static int ads1263_spi_write(const struct device *dev, const uint8_t *tx_buf, size_t len)
+static int ads126x_spi_write(const struct device *dev, const uint8_t *tx_buf, size_t len)
 {
 	const struct ads126x_config *config = dev->config;
 
@@ -202,7 +202,7 @@ static int ads1263_spi_write(const struct device *dev, const uint8_t *tx_buf, si
 	return ret;
 }
 
-static int ads1263_spi_transceive(const struct device *dev, const uint8_t *tx_buf, uint8_t *rx_buf,
+static int ads126x_spi_transceive(const struct device *dev, const uint8_t *tx_buf, uint8_t *rx_buf,
 				  size_t len)
 {
 	const struct ads126x_config *config = dev->config;
@@ -238,18 +238,18 @@ static int ads1263_spi_transceive(const struct device *dev, const uint8_t *tx_bu
 	return ret;
 }
 
-static int ads1263_send_command(const struct device *dev, uint8_t command)
+static int ads126x_send_command(const struct device *dev, uint8_t command)
 {
-	return ads1263_spi_write(dev, &command, 1);
+	return ads126x_spi_write(dev, &command, 1);
 }
 
-static int ads1263_read_reg(const struct device *dev, uint8_t reg, uint8_t *value)
+static int ads126x_read_reg(const struct device *dev, uint8_t reg, uint8_t *value)
 {
 	uint8_t tx[3] = {ADS1263_CMD_RREG | reg, 0x00, 0x00};
 
 	uint8_t rx[3];
 
-	int ret = ads1263_spi_transceive(dev, tx, rx, sizeof(tx));
+	int ret = ads126x_spi_transceive(dev, tx, rx, sizeof(tx));
 
 	if (ret) {
 		return ret;
@@ -260,20 +260,20 @@ static int ads1263_read_reg(const struct device *dev, uint8_t reg, uint8_t *valu
 	return 0;
 }
 
-static int ads1263_write_reg(const struct device *dev, uint8_t reg, uint8_t value)
+static int ads126x_write_reg(const struct device *dev, uint8_t reg, uint8_t value)
 {
 	uint8_t tx[3] = {ADS1263_CMD_WREG | reg, 0x00, value};
 
-	return ads1263_spi_write(dev, tx, sizeof(tx));
+	return ads126x_spi_write(dev, tx, sizeof(tx));
 }
 
-static int ads1263_update_reg(const struct device *dev, uint8_t reg, uint8_t mask, uint8_t value)
+static int ads126x_update_reg(const struct device *dev, uint8_t reg, uint8_t mask, uint8_t value)
 {
 	uint8_t reg_val;
 
 	int ret;
 
-	ret = ads1263_read_reg(dev, reg, &reg_val);
+	ret = ads126x_read_reg(dev, reg, &reg_val);
 
 	if (ret) {
 		return ret;
@@ -283,10 +283,10 @@ static int ads1263_update_reg(const struct device *dev, uint8_t reg, uint8_t mas
 
 	reg_val |= (value & mask);
 
-	return ads1263_write_reg(dev, reg, reg_val);
+	return ads126x_write_reg(dev, reg, reg_val);
 }
 
-static int ads1263_select_channel(const struct device *dev, uint8_t positive, uint8_t negative)
+static int ads126x_select_channel(const struct device *dev, uint8_t positive, uint8_t negative)
 {
 	uint8_t mux = 0;
 
@@ -396,13 +396,13 @@ static int ads1263_select_channel(const struct device *dev, uint8_t positive, ui
 		return -EINVAL;
 	}
 
-	int ret = ads1263_write_reg(dev, ADS1263_REG_INPMUX, mux);
+	int ret = ads126x_write_reg(dev, ADS1263_REG_INPMUX, mux);
 
 	if (ret) {
 		return ret;
 	}
 
-	ret = ads1263_send_command(dev, ADS1263_CMD_START1);
+	ret = ads126x_send_command(dev, ADS1263_CMD_START1);
 
 	if (ret) {
 		return ret;
@@ -411,7 +411,7 @@ static int ads1263_select_channel(const struct device *dev, uint8_t positive, ui
 	return ret;
 }
 
-static int ads1263_wait_drdy(const struct device *dev)
+static int ads126x_wait_drdy(const struct device *dev)
 {
 	const struct ads126x_config *config = dev->config;
 
@@ -432,7 +432,7 @@ static int ads1263_wait_drdy(const struct device *dev)
 	return 0;
 }
 
-static int ads1263_read_data(const struct device *dev, int32_t *sample)
+static int ads126x_read_data(const struct device *dev, int32_t *sample)
 {
 	const struct ads126x_config *config = dev->config;
 	const struct ads126x_data *data = dev->data;
@@ -531,7 +531,7 @@ static int ads1263_read_data(const struct device *dev, int32_t *sample)
 	return 0;
 }
 
-static int ads1263_adc_config_gain(enum adc_gain gain, uint8_t *gain_config, uint32_t *gain_value)
+static int ads126x_adc_config_gain(enum adc_gain gain, uint8_t *gain_config, uint32_t *gain_value)
 {
 	if (gain_config == NULL) {
 		return -EINVAL;
@@ -584,7 +584,7 @@ static int ads1263_adc_config_gain(enum adc_gain gain, uint8_t *gain_config, uin
 	return 0;
 }
 
-static int ads1263_reset(const struct device *dev)
+static int ads126x_reset(const struct device *dev)
 {
 	const struct ads126x_config *config = dev->config;
 
@@ -649,7 +649,7 @@ static int ads126x_init(const struct device *dev)
 
 	/* Reset device */
 
-	ret = ads1263_reset(dev);
+	ret = ads126x_reset(dev);
 
 	if (ret) {
 		LOG_ERR("Failed to reset ADS1263");
@@ -658,7 +658,7 @@ static int ads126x_init(const struct device *dev)
 
 	/* Read and validate device ID */
 
-	ret = ads1263_read_reg(dev, ADS1263_REG_ID, &id);
+	ret = ads126x_read_reg(dev, ADS1263_REG_ID, &id);
 
 	if (ret) {
 		LOG_ERR("Unable to read ID register");
@@ -678,7 +678,7 @@ static int ads126x_init(const struct device *dev)
 
 	/* Stop ADC1 before configuration */
 
-	ret = ads1263_send_command(dev, ADS1263_CMD_STOP1);
+	ret = ads126x_send_command(dev, ADS1263_CMD_STOP1);
 
 	if (ret) {
 		return ret;
@@ -686,7 +686,7 @@ static int ads126x_init(const struct device *dev)
 
 	/* MODE2 Gain = 1, Data Rate = 400 SPS */
 
-	ret = ads1263_write_reg(dev, ADS1263_REG_MODE2,
+	ret = ads126x_write_reg(dev, ADS1263_REG_MODE2,
 				(ADS1263_MODE2_GAIN_1 | ADS1263_MODE2_DR_400));
 
 	if (ret) {
@@ -695,7 +695,7 @@ static int ads126x_init(const struct device *dev)
 
 	/* REFMUX, Internal reference, REFP0 / REFN0 */
 
-	ret = ads1263_write_reg(dev, ADS1263_REG_REFMUX,
+	ret = ads126x_write_reg(dev, ADS1263_REG_REFMUX,
 				ADS1263_REFMUX_P_INT_2_5V | ADS1263_REFMUX_N_INT_AVSS);
 
 	if (ret) {
@@ -704,7 +704,7 @@ static int ads126x_init(const struct device *dev)
 
 	/* MODE0 Continuous Conversion, Delay = 35us, Chop Disabled */
 
-	ret = ads1263_write_reg(dev, ADS1263_REG_MODE0,
+	ret = ads126x_write_reg(dev, ADS1263_REG_MODE0,
 				(ADS1263_MODE0_RUNMODE_CONTINUOUS | ADS1263_MODE0_DELAY_35US));
 
 	if (ret) {
@@ -713,7 +713,7 @@ static int ads126x_init(const struct device *dev)
 
 	/* MODE1 FIR Filter */
 
-	ret = ads1263_write_reg(dev, ADS1263_REG_MODE1, ADS1263_MODE1_FILTER_FIR);
+	ret = ads126x_write_reg(dev, ADS1263_REG_MODE1, ADS1263_MODE1_FILTER_FIR);
 
 	if (ret) {
 		return ret;
@@ -721,13 +721,13 @@ static int ads126x_init(const struct device *dev)
 
 	/* Enable Status byte */
 
-	ret = ads1263_write_reg(dev, ADS1263_REG_INTERFACE, ADS1263_INTERFACE_STATUS_ENABLE);
+	ret = ads126x_write_reg(dev, ADS1263_REG_INTERFACE, ADS1263_INTERFACE_STATUS_ENABLE);
 
 	if (ret) {
 		return ret;
 	}
 
-	ret = ads1263_read_reg(dev, ADS1263_REG_INTERFACE, &data->interface_reg);
+	ret = ads126x_read_reg(dev, ADS1263_REG_INTERFACE, &data->interface_reg);
 
 	if (ret) {
 		return ret;
@@ -735,7 +735,7 @@ static int ads126x_init(const struct device *dev)
 
 	/* Start ADC1 */
 
-	ret = ads1263_send_command(dev, ADS1263_CMD_START1);
+	ret = ads126x_send_command(dev, ADS1263_CMD_START1);
 
 	if (ret) {
 		return ret;
@@ -749,7 +749,7 @@ static int ads126x_init(const struct device *dev)
 	for (uint8_t reg = 1; reg <= 0x1B; ++reg) {
 		uint8_t value;
 
-		ads1263_read_reg(dev, reg, &value);
+		ads126x_read_reg(dev, reg, &value);
 		LOG_INF("REG %02X = %02X", reg, value);
 	}
 
@@ -758,7 +758,7 @@ static int ads126x_init(const struct device *dev)
 	return 0;
 }
 
-static int ads1263_channel_setup(const struct device *dev,
+static int ads126x_channel_setup(const struct device *dev,
 				 const struct adc_channel_cfg *channel_cfg)
 {
 	/* Validate channel ID */
@@ -810,23 +810,23 @@ static int ads1263_channel_setup(const struct device *dev,
 	return 0;
 }
 
-static int ads1263_read(const struct device *dev, const struct adc_sequence *sequence)
+static int ads126x_read(const struct device *dev, const struct adc_sequence *sequence)
 {
 	struct ads126x_data *data = dev->data;
 
-	int ret = ads1263_send_command(dev, ADS1263_CMD_STOP1);
+	int ret = ads126x_send_command(dev, ADS1263_CMD_STOP1);
 
 	if (ret) {
 		return ret;
 	}
 
-	ret = ads1263_select_channel(dev, data->positive_input, data->negative_input);
+	ret = ads126x_select_channel(dev, data->positive_input, data->negative_input);
 
 	if (ret) {
 		return ret;
 	}
 
-	ret = ads1263_wait_drdy(dev);
+	ret = ads126x_wait_drdy(dev);
 
 	if (ret) {
 		return ret;
@@ -837,11 +837,11 @@ static int ads1263_read(const struct device *dev, const struct adc_sequence *seq
 		uint8_t mux;
 
 		mux = data->positive_input << 4 | data->negative_input;
-		/* ads1263_mux_value(data->positive_input, data->negative_input); */
+		/* ads126x_mux_value(data->positive_input, data->negative_input); */
 
 		if (mux != data->cached_inpmux) {
 
-			ret = ads1263_write_reg(dev, ADS1263_REG_INPMUX, mux);
+			ret = ads126x_write_reg(dev, ADS1263_REG_INPMUX, mux);
 
 			if (ret) {
 				return ret;
@@ -853,7 +853,7 @@ static int ads1263_read(const struct device *dev, const struct adc_sequence *seq
 		uint8_t gain_cfg;
 		uint32_t gain_value;
 
-		ret = ads1263_adc_config_gain(data->gain, &gain_cfg, &gain_value);
+		ret = ads126x_adc_config_gain(data->gain, &gain_cfg, &gain_value);
 
 		if (ret) {
 			return ret;
@@ -861,7 +861,7 @@ static int ads1263_read(const struct device *dev, const struct adc_sequence *seq
 
 		if (gain_cfg != data->cached_mode2) {
 
-			ret = ads1263_update_reg(dev, ADS1263_REG_MODE2, ADS1263_MODE2_GAIN_MASK,
+			ret = ads126x_update_reg(dev, ADS1263_REG_MODE2, ADS1263_MODE2_GAIN_MASK,
 						 gain_cfg);
 
 			if (ret) {
@@ -877,25 +877,25 @@ static int ads1263_read(const struct device *dev, const struct adc_sequence *seq
 	uint8_t gain_cfg;
 	uint32_t gain_value;
 
-	ret = ads1263_adc_config_gain(data->gain, &gain_cfg, &gain_value);
+	ret = ads126x_adc_config_gain(data->gain, &gain_cfg, &gain_value);
 
 	if (ret) {
 		return ret;
 	}
 
-	ret = ads1263_update_reg(dev, ADS1263_REG_MODE2, ADS1263_MODE2_GAIN_MASK, gain_cfg);
+	ret = ads126x_update_reg(dev, ADS1263_REG_MODE2, ADS1263_MODE2_GAIN_MASK, gain_cfg);
 
 	if (ret) {
 		return ret;
 	}
 
-	ret = ads1263_send_command(dev, ADS1263_CMD_START1);
+	ret = ads126x_send_command(dev, ADS1263_CMD_START1);
 
 	if (ret) {
 		return ret;
 	}
 
-	ret = ads1263_wait_drdy(dev);
+	ret = ads126x_wait_drdy(dev);
 
 	if (ret) {
 		return ret;
@@ -903,15 +903,15 @@ static int ads1263_read(const struct device *dev, const struct adc_sequence *seq
 
 	int32_t dummy = 0;
 
-	ret = ads1263_read_data(dev, &dummy);
+	ret = ads126x_read_data(dev, &dummy);
 
 	if (ret) {
 		return ret;
 	}
 
-	ret = ads1263_send_command(dev, ADS1263_CMD_START1);
+	ret = ads126x_send_command(dev, ADS1263_CMD_START1);
 
-	ret = ads1263_wait_drdy(dev);
+	ret = ads126x_wait_drdy(dev);
 
 	if (ret) {
 		return ret;
@@ -919,7 +919,7 @@ static int ads1263_read(const struct device *dev, const struct adc_sequence *seq
 
 	int32_t sample = 0;
 
-	ret = ads1263_read_data(dev, &sample);
+	ret = ads126x_read_data(dev, &sample);
 
 	if (ret) {
 		return ret;
@@ -945,8 +945,8 @@ static int ads1263_read(const struct device *dev, const struct adc_sequence *seq
 }
 
 static DEVICE_API(adc, ads126x_driver_api) = {
-	.channel_setup = ads1263_channel_setup,
-	.read = ads1263_read,
+	.channel_setup = ads126x_channel_setup,
+	.read = ads126x_read,
 	.ref_internal = ADS126X_REF_INTERNAL,
 };
 
@@ -957,7 +957,7 @@ static DEVICE_API(adc, ads126x_driver_api) = {
 					    SPI_WORD_SET(8) | SPI_TRANSFER_MSB | SPI_MODE_CPHA),   \
 		.drdy_gpio = GPIO_DT_SPEC_INST_GET_OR(inst, drdy_gpio, {0}),                       \
 		.reset_gpio = GPIO_DT_SPEC_INST_GET_OR(inst, reset_gpio, {0}),                     \
-		.chip_id = DT_INST_PROP(inst, chip_id),                                            \
+		.chip_id = DT_INST_PROP_OR(inst, chip_id, 0),                                      \
 		.adc1_data_rate = DT_INST_PROP(inst, adc1_data_rate),                              \
 		.adc1_gain = DT_INST_PROP(inst, adc1_gain),                                        \
 		.adc1_filter = DT_INST_PROP(inst, adc1_filter),                                    \
