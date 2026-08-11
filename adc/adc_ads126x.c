@@ -12,98 +12,126 @@
 #include <zephyr/logging/log.h>
 #include <zephyr/drivers/adc/ads126x.h>
 
-#define ADS1263_ADC1_RESOLUTION 32U
+#define ADS126X_ADC1_RESOLUTION 32U
 #define ADS126X_REF_INTERNAL    2500 /*< Internal reference voltage in mV */
 
-#define ADS1263_DRDY_TIMEOUT_US 10000U
-#define ADS1263_DRDY_POLL_US    10U
+#define ADS126X_DRDY_TIMEOUT_US 10000U
+#define ADS126X_DRDY_POLL_US    10U
 
 /* System Commands */
-#define ADS1263_CMD_NOP   0x00
-#define ADS1263_CMD_RESET 0x06
+#define ADS126X_CMD_NOP   0x00
+#define ADS126X_CMD_RESET 0x06
 
 /* ADC1 Commands */
-#define ADS1263_CMD_START1 0x08
-#define ADS1263_CMD_STOP1  0x0A
-#define ADS1263_CMD_RDATA1 0x12
+#define ADS126X_CMD_START1  0x08
+#define ADS126X_CMD_STOP1   0x0A
+#define ADS126X_CMD_RDATA1  0x12
+#define ADS126X_CMD_SFOCAL1 0x19
+#define ADS126X_CMD_SFOCAL2 0x1E /* ADS1263 only */
 
 /* ADC2 Commands */
-#define ADS1263_CMD_START2 0x0C
-#define ADS1263_CMD_STOP2  0x0E
-#define ADS1263_CMD_RDATA2 0x14
+#define ADS126X_CMD_START2 0x0C
+#define ADS126X_CMD_STOP2  0x0E
+#define ADS126X_CMD_RDATA2 0x14
 
 /* Register Commands */
-#define ADS1263_CMD_RREG 0x20
-#define ADS1263_CMD_WREG 0x40
+#define ADS126X_CMD_RREG 0x20
+#define ADS126X_CMD_WREG 0x40
+
+/* Power Register */
+#define ADS126X_POWER_INTREF BIT(0)
+
+/* INTERFACE register */
+#define ADS126X_INTF_STATUS   BIT(2)
+#define ADS126X_INTF_CRC_MASK 0x03
+#define ADS126X_INTF_CRC_NONE 0x00
+#define ADS126X_INTF_CRC_CHK  0x01
+#define ADS126X_INTF_CRC_CRC  0x02
+
+/* MODE1 - Filter */
+#define ADS126X_MODE1_FILTER_MASK 0xE0
+
+/* MODE2 - PGA / Data Rate */
+#define ADS126X_MODE2_BYPASS     BIT(7)
+#define ADS126X_MODE2_GAIN_MASK  0x70u
+#define ADS126X_MODE2_GAIN_SHIFT 4
+#define ADS126X_MODE2_DR_MASK    0x0F
+
+/* ADC2CFG (ADS1263 only) */
+#define ADS1263_ADC2CFG_REF_MASK  0xE0
+#define ADS1263_ADC2CFG_GAIN_MASK 0x1C
+#define ADS1263_ADC2CFG_DR_MASK   0x03
+#define ADS1263_REG_ADC2CFG       0x15 /* ADS1263 only */
+#define ADS1263_REG_ADC2MUX       0x16 /* ADS1263 only */
 
 /* Register Addresses */
-#define ADS1263_REG_ID        0x00
-#define ADS1263_REG_POWER     0x01
-#define ADS1263_REG_INTERFACE 0x02
-#define ADS1263_REG_MODE0     0x03
-#define ADS1263_REG_MODE1     0x04
-#define ADS1263_REG_MODE2     0x05
-#define ADS1263_REG_INPMUX    0x06
-#define ADS1263_REG_OFCAL0    0x07
-#define ADS1263_REG_OFCAL1    0x08
-#define ADS1263_REG_OFCAL2    0x09
-#define ADS1263_REG_FSCAL0    0x0A
-#define ADS1263_REG_FSCAL1    0x0B
-#define ADS1263_REG_FSCAL2    0x0C
-#define ADS1263_REG_IDACMUX   0x0D
-#define ADS1263_REG_IDACMAG   0x0E
-#define ADS1263_REG_REFMUX    0x0F
+#define ADS126X_REG_ID        0x00
+#define ADS126X_REG_POWER     0x01
+#define ADS126X_REG_INTERFACE 0x02
+#define ADS126X_REG_MODE0     0x03
+#define ADS126X_REG_MODE1     0x04
+#define ADS126X_REG_MODE2     0x05
+#define ADS126X_REG_INPMUX    0x06
+#define ADS126X_REG_OFCAL0    0x07
+#define ADS126X_REG_OFCAL1    0x08
+#define ADS126X_REG_OFCAL2    0x09
+#define ADS126X_REG_FSCAL0    0x0A
+#define ADS126X_REG_FSCAL1    0x0B
+#define ADS126X_REG_FSCAL2    0x0C
+#define ADS126X_REG_IDACMUX   0x0D
+#define ADS126X_REG_IDACMAG   0x0E
+#define ADS126X_REG_REFMUX    0x0F
 
-#define ADS1263_INTERFACE_STATUS_ENABLE BIT(2)
-#define ADS1263_INTERFACE_CRC_MASK      0x03
-#define ADS1263_INTERFACE_CRC_CRC       0x01
-#define ADS1263_INTERFACE_CRC_CHECKSUM  0x02
+#define ADS126X_INTERFACE_STATUS_ENABLE BIT(2)
+#define ADS126X_INTERFACE_CRC_MASK      0x03
+#define ADS126X_INTERFACE_CRC_CRC       0x01
+#define ADS126X_INTERFACE_CRC_CHECKSUM  0x02
 
 /*TDAC*/
-#define ADS1263_TDAC_CHANNEL_MIN 0U
-#define ADS1263_TDAC_CHANNEL_MAX 7U
+#define ADS126X_TDAC_CHANNEL_MIN 0U
+#define ADS126X_TDAC_CHANNEL_MAX 7U
 
-#define ADS1263_TDAC_LEVEL_MIN 0x00U
-#define ADS1263_TDAC_LEVEL_MAX 0x19U
+#define ADS126X_TDAC_LEVEL_MIN 0x00U
+#define ADS126X_TDAC_LEVEL_MAX 0x19U
 
-#define ADS1263_REG_TDACP 0x10
-#define ADS1263_REG_TDACN 0x11
+#define ADS126X_REG_TDACP 0x10
+#define ADS126X_REG_TDACN 0x11
 
 /* TDAC Output Channel (Bits 7:5) */
 
-#define ADS1263_TDAC_OUT_AIN0 (0x0U << 5)
-#define ADS1263_TDAC_OUT_AIN1 (0x1U << 5)
-#define ADS1263_TDAC_OUT_AIN2 (0x2U << 5)
-#define ADS1263_TDAC_OUT_AIN3 (0x3U << 5)
-#define ADS1263_TDAC_OUT_AIN4 (0x4U << 5)
-#define ADS1263_TDAC_OUT_AIN5 (0x5U << 5)
-#define ADS1263_TDAC_OUT_AIN6 (0x6U << 5)
-#define ADS1263_TDAC_OUT_AIN7 (0x7U << 5)
+#define ADS126X_TDAC_OUT_AIN0 (0x0U << 5)
+#define ADS126X_TDAC_OUT_AIN1 (0x1U << 5)
+#define ADS126X_TDAC_OUT_AIN2 (0x2U << 5)
+#define ADS126X_TDAC_OUT_AIN3 (0x3U << 5)
+#define ADS126X_TDAC_OUT_AIN4 (0x4U << 5)
+#define ADS126X_TDAC_OUT_AIN5 (0x5U << 5)
+#define ADS126X_TDAC_OUT_AIN6 (0x6U << 5)
+#define ADS126X_TDAC_OUT_AIN7 (0x7U << 5)
 
 /* TDAC Output Magnitude (MAGP / MAGN), Bits [4:0], Output voltage with respect to VAVSS */
 
-#define ADS1263_TDAC_2V500000 0x00U /* 2.500000 V */
-#define ADS1263_TDAC_2V507812 0x01U /* 2.5078125 V */
-#define ADS1263_TDAC_2V515625 0x02U /* 2.515625 V */
-#define ADS1263_TDAC_2V531250 0x03U /* 2.531250 V */
-#define ADS1263_TDAC_2V562500 0x04U /* 2.562500 V */
-#define ADS1263_TDAC_2V625000 0x05U /* 2.625000 V */
-#define ADS1263_TDAC_2V750000 0x06U /* 2.750000 V */
-#define ADS1263_TDAC_3V000000 0x07U /* 3.000000 V */
-#define ADS1263_TDAC_3V500000 0x08U /* 3.500000 V */
-#define ADS1263_TDAC_4V500000 0x09U /* 4.500000 V */
+#define ADS126X_TDAC_2V500000 0x00U /* 2.500000 V */
+#define ADS126X_TDAC_2V507812 0x01U /* 2.5078125 V */
+#define ADS126X_TDAC_2V515625 0x02U /* 2.515625 V */
+#define ADS126X_TDAC_2V531250 0x03U /* 2.531250 V */
+#define ADS126X_TDAC_2V562500 0x04U /* 2.562500 V */
+#define ADS126X_TDAC_2V625000 0x05U /* 2.625000 V */
+#define ADS126X_TDAC_2V750000 0x06U /* 2.750000 V */
+#define ADS126X_TDAC_3V000000 0x07U /* 3.000000 V */
+#define ADS126X_TDAC_3V500000 0x08U /* 3.500000 V */
+#define ADS126X_TDAC_4V500000 0x09U /* 4.500000 V */
 
-#define ADS1263_TDAC_2V492187 0x11U /* 2.4921875 V */
-#define ADS1263_TDAC_2V484375 0x12U /* 2.484375 V */
-#define ADS1263_TDAC_2V468750 0x13U /* 2.468750 V */
-#define ADS1263_TDAC_2V437500 0x14U /* 2.437500 V */
-#define ADS1263_TDAC_2V375000 0x15U /* 2.375000 V */
-#define ADS1263_TDAC_2V250000 0x16U /* 2.250000 V */
-#define ADS1263_TDAC_2V000000 0x17U /* 2.000000 V */
-#define ADS1263_TDAC_1V500000 0x18U /* 1.500000 V */
-#define ADS1263_TDAC_0V500000 0x19U /* 0.500000 V */
+#define ADS126X_TDAC_2V492187 0x11U /* 2.4921875 V */
+#define ADS126X_TDAC_2V484375 0x12U /* 2.484375 V */
+#define ADS126X_TDAC_2V468750 0x13U /* 2.468750 V */
+#define ADS126X_TDAC_2V437500 0x14U /* 2.437500 V */
+#define ADS126X_TDAC_2V375000 0x15U /* 2.375000 V */
+#define ADS126X_TDAC_2V250000 0x16U /* 2.250000 V */
+#define ADS126X_TDAC_2V000000 0x17U /* 2.000000 V */
+#define ADS126X_TDAC_1V500000 0x18U /* 1.500000 V */
+#define ADS126X_TDAC_0V500000 0x19U /* 0.500000 V */
 
-#define ADS1263_TDAC_LEVEL(x) ((x) & 0x1F)
+#define ADS126X_TDAC_LEVEL(x) ((x) & 0x1F)
 
 #define ADS126X_ADC2_OFFSET 16
 #define ADS126X_IS_ADC2(ch) ((ch) >= ADS126X_ADC2_OFFSET)
@@ -245,7 +273,7 @@ static int ads126x_send_command(const struct device *dev, uint8_t command)
 
 static int ads126x_read_reg(const struct device *dev, uint8_t reg, uint8_t *value)
 {
-	uint8_t tx[3] = {ADS1263_CMD_RREG | reg, 0x00, 0x00};
+	uint8_t tx[3] = {ADS126X_CMD_RREG | reg, 0x00, 0x00};
 
 	uint8_t rx[3];
 
@@ -262,7 +290,7 @@ static int ads126x_read_reg(const struct device *dev, uint8_t reg, uint8_t *valu
 
 static int ads126x_write_reg(const struct device *dev, uint8_t reg, uint8_t value)
 {
-	uint8_t tx[3] = {ADS1263_CMD_WREG | reg, 0x00, value};
+	uint8_t tx[3] = {ADS126X_CMD_WREG | reg, 0x00, value};
 
 	return ads126x_spi_write(dev, tx, sizeof(tx));
 }
@@ -292,52 +320,52 @@ static int ads126x_select_channel(const struct device *dev, uint8_t positive, ui
 
 	switch (positive) {
 	case 0:
-		mux = ADS1263_MUXP_AIN0;
+		mux = ADS126X_MUXP_AIN0;
 		break;
 	case 1:
-		mux = ADS1263_MUXP_AIN1;
+		mux = ADS126X_MUXP_AIN1;
 		break;
 	case 2:
-		mux = ADS1263_MUXP_AIN2;
+		mux = ADS126X_MUXP_AIN2;
 		break;
 	case 3:
-		mux = ADS1263_MUXP_AIN3;
+		mux = ADS126X_MUXP_AIN3;
 		break;
 	case 4:
-		mux = ADS1263_MUXP_AIN4;
+		mux = ADS126X_MUXP_AIN4;
 		break;
 	case 5:
-		mux = ADS1263_MUXP_AIN5;
+		mux = ADS126X_MUXP_AIN5;
 		break;
 	case 6:
-		mux = ADS1263_MUXP_AIN6;
+		mux = ADS126X_MUXP_AIN6;
 		break;
 	case 7:
-		mux = ADS1263_MUXP_AIN7;
+		mux = ADS126X_MUXP_AIN7;
 		break;
 	case 8:
-		mux = ADS1263_MUXP_AIN8;
+		mux = ADS126X_MUXP_AIN8;
 		break;
 	case 9:
-		mux = ADS1263_MUXP_AIN9;
+		mux = ADS126X_MUXP_AIN9;
 		break;
 	case 10:
-		mux = ADS1263_MUXP_AINCOM;
+		mux = ADS126X_MUXP_AINCOM;
 		break;
 	case 11:
-		mux = ADS1263_MUXP_TEMP;
+		mux = ADS126X_MUXP_TEMP;
 		break;
 	case 12:
-		mux = ADS1263_MUXP_AVDD;
+		mux = ADS126X_MUXP_AVDD;
 		break;
 	case 13:
-		mux = ADS1263_MUXP_DVDD;
+		mux = ADS126X_MUXP_DVDD;
 		break;
 	case 14:
-		mux = ADS1263_MUXP_TDAC;
+		mux = ADS126X_MUXP_TDAC;
 		break;
 	case 15:
-		mux = ADS1263_MUXP_FLOAT;
+		mux = ADS126X_MUXP_FLOAT;
 		break;
 	default:
 		return -EINVAL;
@@ -345,64 +373,64 @@ static int ads126x_select_channel(const struct device *dev, uint8_t positive, ui
 
 	switch (negative) {
 	case 0:
-		mux |= ADS1263_MUXN_AIN0;
+		mux |= ADS126X_MUXN_AIN0;
 		break;
 	case 1:
-		mux |= ADS1263_MUXN_AIN1;
+		mux |= ADS126X_MUXN_AIN1;
 		break;
 	case 2:
-		mux |= ADS1263_MUXN_AIN2;
+		mux |= ADS126X_MUXN_AIN2;
 		break;
 	case 3:
-		mux |= ADS1263_MUXN_AIN3;
+		mux |= ADS126X_MUXN_AIN3;
 		break;
 	case 4:
-		mux |= ADS1263_MUXN_AIN4;
+		mux |= ADS126X_MUXN_AIN4;
 		break;
 	case 5:
-		mux |= ADS1263_MUXN_AIN5;
+		mux |= ADS126X_MUXN_AIN5;
 		break;
 	case 6:
-		mux |= ADS1263_MUXN_AIN6;
+		mux |= ADS126X_MUXN_AIN6;
 		break;
 	case 7:
-		mux |= ADS1263_MUXN_AIN7;
+		mux |= ADS126X_MUXN_AIN7;
 		break;
 	case 8:
-		mux |= ADS1263_MUXN_AIN8;
+		mux |= ADS126X_MUXN_AIN8;
 		break;
 	case 9:
-		mux |= ADS1263_MUXN_AIN9;
+		mux |= ADS126X_MUXN_AIN9;
 		break;
 	case 10:
-		mux |= ADS1263_MUXN_AINCOM;
+		mux |= ADS126X_MUXN_AINCOM;
 		break;
 	case 11:
-		mux |= ADS1263_MUXN_TEMP;
+		mux |= ADS126X_MUXN_TEMP;
 		break;
 	case 12:
-		mux |= ADS1263_MUXN_AVSS;
+		mux |= ADS126X_MUXN_AVSS;
 		break;
 	case 13:
-		mux |= ADS1263_MUXN_DVSS;
+		mux |= ADS126X_MUXN_DVSS;
 		break;
 	case 14:
-		mux |= ADS1263_MUXN_TDAC;
+		mux |= ADS126X_MUXN_TDAC;
 		break;
 	case 15:
-		mux |= ADS1263_MUXN_FLOAT;
+		mux |= ADS126X_MUXN_FLOAT;
 		break;
 	default:
 		return -EINVAL;
 	}
 
-	int ret = ads126x_write_reg(dev, ADS1263_REG_INPMUX, mux);
+	int ret = ads126x_write_reg(dev, ADS126X_REG_INPMUX, mux);
 
 	if (ret) {
 		return ret;
 	}
 
-	ret = ads126x_send_command(dev, ADS1263_CMD_START1);
+	ret = ads126x_send_command(dev, ADS126X_CMD_START1);
 
 	if (ret) {
 		return ret;
@@ -419,14 +447,14 @@ static int ads126x_wait_drdy(const struct device *dev)
 
 	while (gpio_pin_get_dt(&config->drdy_gpio) != 0) {
 
-		if (elapsed >= ADS1263_DRDY_TIMEOUT_US) {
+		if (elapsed >= ADS126X_DRDY_TIMEOUT_US) {
 			LOG_ERR("DRDY timeout");
 			return -ETIMEDOUT;
 		}
 
-		k_busy_wait(ADS1263_DRDY_POLL_US);
+		k_busy_wait(ADS126X_DRDY_POLL_US);
 
-		elapsed += ADS1263_DRDY_POLL_US;
+		elapsed += ADS126X_DRDY_POLL_US;
 	}
 
 	return 0;
@@ -448,13 +476,13 @@ static int ads126x_read_data(const struct device *dev, int32_t *sample)
 		return -EINVAL;
 	}
 
-	bool status_enable = (interface_reg & ADS1263_INTERFACE_STATUS_ENABLE) != 0U;
+	bool status_enable = (interface_reg & ADS126X_INTERFACE_STATUS_ENABLE) != 0U;
 
-	uint8_t crc_mode = (interface_reg & ADS1263_INTERFACE_CRC_MASK);
+	uint8_t crc_mode = (interface_reg & ADS126X_INTERFACE_CRC_MASK);
 
-	bool crc_enable = (crc_mode == ADS1263_INTERFACE_CRC_CRC);
+	bool crc_enable = (crc_mode == ADS126X_INTERFACE_CRC_CRC);
 
-	bool checksum_enable = (crc_mode == ADS1263_INTERFACE_CRC_CHECKSUM);
+	bool checksum_enable = (crc_mode == ADS126X_INTERFACE_CRC_CHECKSUM);
 
 	/* Determine response length*/
 
@@ -468,7 +496,7 @@ static int ads126x_read_data(const struct device *dev, int32_t *sample)
 		frame_len++;
 	}
 
-	tx_buf[0] = ADS1263_CMD_RDATA1;
+	tx_buf[0] = ADS126X_CMD_RDATA1;
 
 	struct spi_buf tx_spi = {
 		.buf = tx_buf,
@@ -541,32 +569,32 @@ static int ads126x_adc_config_gain(enum adc_gain gain, uint8_t *gain_config, uin
 
 	switch (gain) {
 	case ADC_GAIN_1:
-		*gain_config = ADS1263_MODE2_GAIN_1;
+		*gain_config = ADS126X_MODE2_GAIN_1;
 		*gain_value = 1;
 		break;
 
 	case ADC_GAIN_2:
-		*gain_config = ADS1263_MODE2_GAIN_2;
+		*gain_config = ADS126X_MODE2_GAIN_2;
 		*gain_value = 2;
 		break;
 
 	case ADC_GAIN_4:
-		*gain_config = ADS1263_MODE2_GAIN_4;
+		*gain_config = ADS126X_MODE2_GAIN_4;
 		*gain_value = 4;
 		break;
 
 	case ADC_GAIN_8:
-		*gain_config = ADS1263_MODE2_GAIN_8;
+		*gain_config = ADS126X_MODE2_GAIN_8;
 		*gain_value = 8;
 		break;
 
 	case ADC_GAIN_16:
-		*gain_config = ADS1263_MODE2_GAIN_16;
+		*gain_config = ADS126X_MODE2_GAIN_16;
 		*gain_value = 16;
 		break;
 
 	case ADC_GAIN_32:
-		*gain_config = ADS1263_MODE2_GAIN_32;
+		*gain_config = ADS126X_MODE2_GAIN_32;
 		*gain_value = 32;
 		break;
 
@@ -603,210 +631,76 @@ static int ads126x_reset(const struct device *dev)
 	return 0;
 }
 
-static int ads126x_init(const struct device *dev)
+static int ads126x_verify_id(const struct device *dev)
 {
-	struct ads126x_data *data = dev->data;
 	const struct ads126x_config *config = dev->config;
 
 	uint8_t id;
-	uint8_t device;
 	int ret;
 
-	k_mutex_init(&data->lock);
-
-	/* Verify peripherals */
-
-	if (!spi_is_ready_dt(&config->bus)) {
-		LOG_ERR("SPI not ready");
-		return -ENODEV;
-	}
-
-	if (!gpio_is_ready_dt(&config->drdy_gpio)) {
-		LOG_ERR("DRDY GPIO not ready");
-		return -ENODEV;
-	}
-
-	ret = gpio_pin_configure_dt(&config->drdy_gpio, GPIO_INPUT);
-
+	ret = ads126x_read_reg(dev, ADS126X_REG_ID, &id);
 	if (ret) {
+		LOG_ERR("Failed to read device ID: %d", ret);
 		return ret;
 	}
 
-	if (config->reset_gpio.port != NULL) {
+	uint8_t dev_id = id & ADS126X_ID_DEV_MASK;
 
-		if (!gpio_is_ready_dt(&config->reset_gpio)) {
-			return -ENODEV;
-		}
+	LOG_DBG("ADS126x Device ID register: 0x%02X", id);
 
-		ret = gpio_pin_configure_dt(&config->reset_gpio, (GPIO_OUTPUT_HIGH));
-
-		if (ret) {
-			return ret;
-		}
+	if (config->chip_id == ADS126X_CHIP_ADS1262 && dev_id != ADS126X_ID_ADS1262) {
+		LOG_ERR("Expected ADS1262 (0x00) but got 0x%02X", dev_id);
+		return -EINVAL;
+	}
+	if (config->chip_id == ADS126X_CHIP_ADS1263 && dev_id != ADS126X_ID_ADS1263) {
+		LOG_ERR("Expected ADS1263 (0x20) but got 0x%02X", dev_id);
+		return -EINVAL;
 	}
 
-	gpio_pin_set_dt(&config->reset_gpio, 1);
-
-	/* Reset device */
-
-	ret = ads126x_reset(dev);
-
-	if (ret) {
-		LOG_ERR("Failed to reset ADS1263");
-		return ret;
-	}
-
-	/* Read and validate device ID */
-
-	ret = ads126x_read_reg(dev, ADS1263_REG_ID, &id);
-
-	if (ret) {
-		LOG_ERR("Unable to read ID register");
-		return ret;
-	}
-
-	device = (id >> 5) & 0x07;
-
-	if (device != 1U) {
-		LOG_ERR("ADS1263 not detected. ID=0x%02X", id);
-		return -ENODEV;
-	}
-
-	LOG_INF("ADS1263 detected");
-
-	data->device_id = device;
-
-	/* Stop ADC1 before configuration */
-
-	ret = ads126x_send_command(dev, ADS1263_CMD_STOP1);
-
-	if (ret) {
-		return ret;
-	}
-
-	/* MODE2 Gain = 1, Data Rate = 400 SPS */
-
-	ret = ads126x_write_reg(dev, ADS1263_REG_MODE2,
-				(ADS1263_MODE2_GAIN_1 | ADS1263_MODE2_DR_400));
-
-	if (ret) {
-		return ret;
-	}
-
-	/* REFMUX, Internal reference, REFP0 / REFN0 */
-
-	ret = ads126x_write_reg(dev, ADS1263_REG_REFMUX,
-				ADS1263_REFMUX_P_INT_2_5V | ADS1263_REFMUX_N_INT_AVSS);
-
-	if (ret) {
-		return ret;
-	}
-
-	/* MODE0 Continuous Conversion, Delay = 35us, Chop Disabled */
-
-	ret = ads126x_write_reg(dev, ADS1263_REG_MODE0,
-				(ADS1263_MODE0_RUNMODE_CONTINUOUS | ADS1263_MODE0_DELAY_35US));
-
-	if (ret) {
-		return ret;
-	}
-
-	/* MODE1 FIR Filter */
-
-	ret = ads126x_write_reg(dev, ADS1263_REG_MODE1, ADS1263_MODE1_FILTER_FIR);
-
-	if (ret) {
-		return ret;
-	}
-
-	/* Enable Status byte */
-
-	ret = ads126x_write_reg(dev, ADS1263_REG_INTERFACE, ADS1263_INTERFACE_STATUS_ENABLE);
-
-	if (ret) {
-		return ret;
-	}
-
-	ret = ads126x_read_reg(dev, ADS1263_REG_INTERFACE, &data->interface_reg);
-
-	if (ret) {
-		return ret;
-	}
-
-	/* Start ADC1 */
-
-	ret = ads126x_send_command(dev, ADS1263_CMD_START1);
-
-	if (ret) {
-		return ret;
-	}
-
-	data->initialized = true;
-	data->config_dirty = true;
-	data->cached_mode2 = 0xFF;
-	data->cached_inpmux = 0xFF;
-
-	for (uint8_t reg = 1; reg <= 0x1B; ++reg) {
-		uint8_t value;
-
-		ads126x_read_reg(dev, reg, &value);
-		LOG_INF("REG %02X = %02X", reg, value);
-	}
-
-	LOG_INF("ADS1263 initialization complete Interface Reg=0x%02X", data->interface_reg);
-
+	LOG_INF("ADS126x ID verified: 0x%02X", id);
 	return 0;
 }
-
 static int ads126x_channel_setup(const struct device *dev,
 				 const struct adc_channel_cfg *channel_cfg)
 {
-	/* Validate channel ID */
+	const struct ads126x_config *config = dev->config;
 
-	struct ads126x_data *data = dev->data;
-
-	if (!data->initialized) {
-		return -EIO;
-	}
-
-	if (channel_cfg->gain > ADC_GAIN_32) {
+	if (channel_cfg->channel_id >= ADS126X_MAX_CHANNELS) {
+		LOG_ERR("Channel ID %d exceeds maximum %d", channel_cfg->channel_id,
+			ADS126X_MAX_CHANNELS - 1);
 		return -EINVAL;
 	}
 
-	if (channel_cfg->channel_id != 0) {
-		LOG_ERR("Only channel 0 supported");
+	/* ADC2 channels only on ADS1263 */
+	if (channel_cfg->channel_id >= ADS126X_ADC2_CHANNEL_OFFSET &&
+	    config->chip_id != ADS126X_CHIP_ADS1263) {
+		LOG_ERR("ADC2 channels require ADS1263");
+		return -ENOTSUP;
+	}
+
+	/* Gain validation: ADC1 supports 1, 2, 4, 8, 16, 32 */
+	switch (channel_cfg->gain) {
+	case ADC_GAIN_1:
+	case ADC_GAIN_2:
+	case ADC_GAIN_4:
+	case ADC_GAIN_8:
+	case ADC_GAIN_16:
+	case ADC_GAIN_32:
+		break;
+	default:
+		LOG_ERR("Unsupported gain");
 		return -EINVAL;
 	}
 
-	if (channel_cfg->reference != ADC_REF_INTERNAL &&
-	    channel_cfg->reference != ADC_REF_EXTERNAL0) {
-		return -EINVAL;
+	/* Reference validation */
+	if (channel_cfg->reference == ADC_REF_INTERNAL) {
+		if (!config->internal_vref) {
+			LOG_ERR("Internal reference not enabled in DTS");
+			return -EINVAL;
+		}
 	}
 
-	data->channel_id = channel_cfg->channel_id;
-
-	data->gain = channel_cfg->gain;
-
-	data->reference = channel_cfg->reference;
-
-	data->differential = channel_cfg->differential;
-
-	data->positive_input = channel_cfg->input_positive;
-
-	data->negative_input = channel_cfg->input_negative;
-
-	data->config_dirty = true;
-
-	LOG_DBG("Channel configuration stored");
-
-	uint8_t inpmux_config = 0;
-
-	LOG_DBG("Configured MUX: %u (differential=%s, pos=%d, neg=%d)", inpmux_config,
-		channel_cfg->differential ? "true" : "false", channel_cfg->input_positive,
-		channel_cfg->input_negative);
-
-	LOG_INF("ADS1263 channel setup");
-
+	LOG_DBG("Channel %d configured", channel_cfg->channel_id);
 	return 0;
 }
 
@@ -814,7 +708,7 @@ static int ads126x_read(const struct device *dev, const struct adc_sequence *seq
 {
 	struct ads126x_data *data = dev->data;
 
-	int ret = ads126x_send_command(dev, ADS1263_CMD_STOP1);
+	int ret = ads126x_send_command(dev, ADS126X_CMD_STOP1);
 
 	if (ret) {
 		return ret;
@@ -841,7 +735,7 @@ static int ads126x_read(const struct device *dev, const struct adc_sequence *seq
 
 		if (mux != data->cached_inpmux) {
 
-			ret = ads126x_write_reg(dev, ADS1263_REG_INPMUX, mux);
+			ret = ads126x_write_reg(dev, ADS126X_REG_INPMUX, mux);
 
 			if (ret) {
 				return ret;
@@ -861,7 +755,7 @@ static int ads126x_read(const struct device *dev, const struct adc_sequence *seq
 
 		if (gain_cfg != data->cached_mode2) {
 
-			ret = ads126x_update_reg(dev, ADS1263_REG_MODE2, ADS1263_MODE2_GAIN_MASK,
+			ret = ads126x_update_reg(dev, ADS126X_REG_MODE2, ADS126X_MODE2_GAIN_MASK,
 						 gain_cfg);
 
 			if (ret) {
@@ -883,13 +777,13 @@ static int ads126x_read(const struct device *dev, const struct adc_sequence *seq
 		return ret;
 	}
 
-	ret = ads126x_update_reg(dev, ADS1263_REG_MODE2, ADS1263_MODE2_GAIN_MASK, gain_cfg);
+	ret = ads126x_update_reg(dev, ADS126X_REG_MODE2, ADS126X_MODE2_GAIN_MASK, gain_cfg);
 
 	if (ret) {
 		return ret;
 	}
 
-	ret = ads126x_send_command(dev, ADS1263_CMD_START1);
+	ret = ads126x_send_command(dev, ADS126X_CMD_START1);
 
 	if (ret) {
 		return ret;
@@ -909,7 +803,7 @@ static int ads126x_read(const struct device *dev, const struct adc_sequence *seq
 		return ret;
 	}
 
-	ret = ads126x_send_command(dev, ADS1263_CMD_START1);
+	ret = ads126x_send_command(dev, ADS126X_CMD_START1);
 
 	ret = ads126x_wait_drdy(dev);
 
@@ -936,12 +830,257 @@ static int ads126x_read(const struct device *dev, const struct adc_sequence *seq
 	*(int32_t *)sequence->buffer = sample;
 
 	/* float voltage = ((float)sample * 2.5f / (float)(1 << 31)); */
+	for (uint8_t reg = 1; reg <= 0x1B; ++reg) {
+		uint8_t value;
+
+		ads126x_read_reg(dev, reg, &value);
+		LOG_INF("REG %02X = %02X", reg, value);
+	}
 
 	double voltage = ((double)(sample * 2.5f)) / ((double)(INT32_MAX * gain_value));
 
-	LOG_INF("ADS1263 read adc %d, Voltage: %f", sample, (double)voltage);
+	LOG_INF("ADS1263 read adc %d, Voltage: %f, gain_value: %d", sample, (double)voltage,
+		gain_value);
 
 	return ret;
+}
+
+static int ads126x_config_power(const struct device *dev)
+{
+	const struct ads126x_config *config = dev->config;
+	uint8_t val = 0;
+
+	if (config->internal_vref) {
+		val |= ADS126X_POWER_INTREF;
+	}
+
+	return ads126x_write_reg(dev, ADS126X_REG_POWER, val);
+}
+
+static int ads126x_config_interface(const struct device *dev)
+{
+	const struct ads126x_config *config = dev->config;
+	uint8_t val = 0;
+
+	if (config->status_byte) {
+		val |= ADS126X_INTF_STATUS;
+	}
+	val |= (config->crc_mode & ADS126X_INTF_CRC_MASK);
+
+	return ads126x_write_reg(dev, ADS126X_REG_INTERFACE, val);
+}
+
+static int ads126x_config_adc1(const struct device *dev)
+{
+	const struct ads126x_config *config = dev->config;
+	int ret;
+
+	/* MODE0: pulse conversion, default delay */
+	ret = ads126x_write_reg(dev, ADS126X_REG_MODE0, 0x00);
+	if (ret) {
+		return ret;
+	}
+
+	uint8_t mode1 = (config->adc1_filter << 5) & ADS126X_MODE1_FILTER_MASK;
+
+	LOG_INF("config->adc1_filter = 0x%02X, mode1 = 0x%02X", config->adc1_filter, mode1);
+
+	/* MODE1: filter selection */
+	ret = ads126x_write_reg(dev, ADS126X_REG_MODE1, mode1);
+	if (ret) {
+		return ret;
+	}
+
+	/* MODE2: PGA gain + data rate */
+	uint8_t mode2 = 0;
+
+	if (config->adc1_pga_bypass) {
+		mode2 |= ADS126X_MODE2_BYPASS;
+	}
+
+	mode2 |= ((config->adc1_gain << ADS126X_MODE2_GAIN_SHIFT) & ADS126X_MODE2_GAIN_MASK);
+	mode2 |= (config->adc1_data_rate & ADS126X_MODE2_DR_MASK);
+
+	ret = ads126x_write_reg(dev, ADS126X_REG_MODE2, mode2);
+	if (ret) {
+		return ret;
+	}
+
+	/* REFMUX */
+	ret = ads126x_write_reg(dev, ADS126X_REG_REFMUX, config->adc1_ref_mux);
+
+	return ret;
+}
+
+static int ads126x_config_adc2(const struct device *dev)
+{
+	const struct ads126x_config *config = dev->config;
+
+	if (config->chip_id != ADS126X_CHIP_ADS1263) {
+		return 0;
+	}
+
+	/* ADC2CFG: reference + gain + data rate */
+	uint8_t adc2cfg = 0;
+
+	adc2cfg |= (config->adc2_ref_mux << 5) & ADS1263_ADC2CFG_REF_MASK;
+	adc2cfg |= (config->adc2_gain << 2) & ADS1263_ADC2CFG_GAIN_MASK;
+	adc2cfg |= (config->adc2_data_rate) & ADS1263_ADC2CFG_DR_MASK;
+
+	int ret = ads126x_write_reg(dev, ADS1263_REG_ADC2CFG, adc2cfg);
+
+	if (ret) {
+		return ret;
+	}
+
+	/* ADC2MUX: default AIN6 vs AIN7 (differential pair) */
+	return ret;
+}
+
+int ads126x_selfoffset_cal_adc1(const struct device *dev)
+{
+	int ret = ads126x_send_command(dev, ADS126X_CMD_SFOCAL1);
+
+	if (ret) {
+		return ret;
+	}
+
+	k_sleep(K_MSEC(10)); /* Wait calibration to complete */
+
+	LOG_INF("ADC1 self-offset calibration done");
+
+	return 0;
+}
+
+int ads126x_selfoffset_cal_adc2(const struct device *dev)
+{
+	const struct ads126x_config *config = dev->config;
+
+	if (config->chip_id != ADS126X_CHIP_ADS1263) {
+		return -ENOTSUP;
+	}
+
+	int ret = ads126x_send_command(dev, ADS126X_CMD_SFOCAL2);
+
+	if (ret) {
+		return ret;
+	}
+
+	k_sleep(K_MSEC(10));
+
+	LOG_INF("ADC2 self-offset calibration done");
+
+	return 0;
+}
+
+static int ads126x_init(const struct device *dev)
+{
+	struct ads126x_data *data = dev->data;
+	const struct ads126x_config *config = dev->config;
+
+	int ret;
+
+	k_mutex_init(&data->lock);
+
+	/* Verify peripherals */
+
+	if (!spi_is_ready_dt(&config->bus)) {
+		LOG_ERR("SPI not ready");
+		return -ENODEV;
+	}
+
+	if (config->drdy_gpio.port != NULL) {
+		if (!gpio_is_ready_dt(&config->drdy_gpio)) {
+			LOG_ERR("DRDY GPIO not ready");
+			return -ENODEV;
+		}
+	}
+
+	ret = gpio_pin_configure_dt(&config->drdy_gpio, GPIO_INPUT);
+
+	if (ret) {
+		return ret;
+	}
+
+	if (config->reset_gpio.port != NULL) {
+		if (!gpio_is_ready_dt(&config->reset_gpio)) {
+			return -ENODEV;
+		}
+
+		ret = gpio_pin_configure_dt(&config->reset_gpio, (GPIO_OUTPUT_HIGH));
+
+		if (ret) {
+			return ret;
+		}
+
+		gpio_pin_set_dt(&config->reset_gpio, 1);
+	}
+
+	/* Reset device */
+
+	ret = ads126x_reset(dev);
+
+	if (ret) {
+		LOG_ERR("Failed to reset ADS1263");
+		return ret;
+	}
+
+	/* Read and validate device ID */
+
+	ret = ads126x_verify_id(dev);
+	if (ret) {
+		return ret;
+	}
+
+	/* Stop ADC1 before configuration */
+
+	ret = ads126x_send_command(dev, ADS126X_CMD_STOP1);
+
+	if (ret) {
+		return ret;
+	}
+
+	/* --- Configure registers --- */
+	ret = ads126x_config_power(dev);
+	if (ret) {
+		return ret;
+	}
+
+	ret = ads126x_config_interface(dev);
+	if (ret) {
+		return ret;
+	}
+
+	ret = ads126x_config_adc1(dev);
+	if (ret) {
+		return ret;
+	}
+
+	/* ret = ads126x_selfoffset_cal_adc1(dev); */
+	if (ret) {
+		LOG_WRN("ADC1 self-offset cal failed: %d (non-fatal)", ret);
+	}
+
+	if ((config->chip_id == ADS126X_CHIP_ADS1263) && 0) {
+		ret = ads126x_config_adc2(dev);
+		if (ret) {
+			return ret;
+		}
+
+		ret = ads126x_selfoffset_cal_adc2(dev);
+		if (ret) {
+			LOG_WRN("ADC2 self-offset cal failed: %d (non-fatal)", ret);
+		}
+	}
+
+	/* adc context unlock */
+
+	LOG_INF("ADS126x (%s) initialised",
+		config->chip_id == ADS126X_CHIP_ADS1263 ? "ADS1263" : "ADS1262");
+
+	LOG_INF("ADS1263 initialization complete Interface Reg=0x%02X", data->interface_reg);
+
+	return 0;
 }
 
 static DEVICE_API(adc, ads126x_driver_api) = {
@@ -955,8 +1094,8 @@ static DEVICE_API(adc, ads126x_driver_api) = {
 	static const struct ads126x_config config_##inst = {                                       \
 		.bus = SPI_DT_SPEC_INST_GET(inst,                                                  \
 					    SPI_WORD_SET(8) | SPI_TRANSFER_MSB | SPI_MODE_CPHA),   \
-		.drdy_gpio = GPIO_DT_SPEC_INST_GET_OR(inst, drdy_gpio, {0}),                       \
-		.reset_gpio = GPIO_DT_SPEC_INST_GET_OR(inst, reset_gpio, {0}),                     \
+		.drdy_gpio = GPIO_DT_SPEC_INST_GET_OR(inst, drdy_gpios, {0}),                      \
+		.reset_gpio = GPIO_DT_SPEC_INST_GET_OR(inst, reset_gpios, {0}),                    \
 		.chip_id = DT_INST_PROP_OR(inst, chip_id, 0),                                      \
 		.adc1_data_rate = DT_INST_PROP(inst, adc1_data_rate),                              \
 		.adc1_gain = DT_INST_PROP(inst, adc1_gain),                                        \
