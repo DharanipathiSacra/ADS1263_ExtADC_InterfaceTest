@@ -25,7 +25,7 @@ include:
 properties:
   chip-id:
     type: int
-    const: 0        # ADS126X_CHIP_ADS1262 = 0  (set fixed by this binding)
+    default: 0        # ADS126X_CHIP_ADS1262 = 0  (set fixed by this binding)
     description: |
       Identifies the chip variant to the driver.  Fixed to 0 (ADS1262).
       Do not override.

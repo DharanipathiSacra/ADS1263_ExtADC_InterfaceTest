@@ -30,7 +30,7 @@ include:
 properties:
   chip-id:
     type: int
-    const: 1
+    default: 1
     description: |
       Identifies the chip variant to the driver.  Fixed to 1 (ADS1263).
       Do not override.
