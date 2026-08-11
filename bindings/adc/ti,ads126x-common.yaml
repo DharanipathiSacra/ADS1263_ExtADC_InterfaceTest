@@ -33,6 +33,14 @@ properties:
       asserts this GPIO for ≥10 µs during init.
       If omitted a software RESET command is issued instead.
 
+  start-gpios:
+    type: phandle-array
+    description: |
+      START/SYNC pin.  When present the driver pulses this GPIO
+      to trigger conversions rather than using the SPI START1/START2
+      commands.  Leave unconnected (tie to GND or AVDD per schematic)
+      when not used.
+
   # ------------------------------------------------------------------
   # Voltage reference
   # ------------------------------------------------------------------
