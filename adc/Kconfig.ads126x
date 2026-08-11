@@ -9,6 +9,7 @@ config ADC_ADS126X
     depends on DT_HAS_TI_ADS1262_ENABLED || \
 		DT_HAS_TI_ADS1263_ENABLED
     depends on SPI
+    select ADC_CONTEXT_USES_KERNEL_TIMER
 
     help
       Enable support for the Texas Instruments ADS126x SPI ADC.
