@@ -11,9 +11,19 @@
 #include <zephyr/drivers/adc.h>
 #include <zephyr/logging/log.h>
 #include <zephyr/drivers/adc/ads126x.h>
+#include <zephyr/sys/util.h>
+#include <errno.h>
 
 #define ADC_CONTEXT_USES_KERNEL_TIMER
 #include "adc_context.h"
+
+/* ADC1 Channel Id: (0  - 15) */
+#define ADS126X_ADC1_CHANNEL_MIN 0U
+#define ADS126X_ADC1_CHANNEL_MAX 15U
+
+/* ADC2 Channel Id: (16  - 31) */
+#define ADS126X_ADC2_CHANNEL_MIN 16U
+#define ADS126X_ADC2_CHANNEL_MAX 31U
 
 #define ADS126X_ADC1_RESOLUTION 32U
 #define ADS126X_REF_INTERNAL    2500 /*< Internal reference voltage in mV */
@@ -105,53 +115,45 @@
 
 #define ADS126X_RDATA_TIMEOUT_MS 500U
 
-/*TDAC*/
-#define ADS126X_TDAC_CHANNEL_MIN 0U
-#define ADS126X_TDAC_CHANNEL_MAX 7U
+#define ADS126X_MUXP_SHIFT 4U
+#define ADS126X_MUX_MASK   0x0FU
 
-#define ADS126X_TDAC_LEVEL_MIN 0x00U
-#define ADS126X_TDAC_LEVEL_MAX 0x19U
-
-#define ADS126X_REG_TDACP 0x10
-#define ADS126X_REG_TDACN 0x11
-
-/* TDAC Output Channel (Bits 7:5) */
-
-#define ADS126X_TDAC_OUT_AIN0 (0x0U << 5)
-#define ADS126X_TDAC_OUT_AIN1 (0x1U << 5)
-#define ADS126X_TDAC_OUT_AIN2 (0x2U << 5)
-#define ADS126X_TDAC_OUT_AIN3 (0x3U << 5)
-#define ADS126X_TDAC_OUT_AIN4 (0x4U << 5)
-#define ADS126X_TDAC_OUT_AIN5 (0x5U << 5)
-#define ADS126X_TDAC_OUT_AIN6 (0x6U << 5)
-#define ADS126X_TDAC_OUT_AIN7 (0x7U << 5)
-
-/* TDAC Output Magnitude (MAGP / MAGN), Bits [4:0], Output voltage with respect to VAVSS */
-
-#define ADS126X_TDAC_2V500000 0x00U /* 2.500000 V */
-#define ADS126X_TDAC_2V507812 0x01U /* 2.5078125 V */
-#define ADS126X_TDAC_2V515625 0x02U /* 2.515625 V */
-#define ADS126X_TDAC_2V531250 0x03U /* 2.531250 V */
-#define ADS126X_TDAC_2V562500 0x04U /* 2.562500 V */
-#define ADS126X_TDAC_2V625000 0x05U /* 2.625000 V */
-#define ADS126X_TDAC_2V750000 0x06U /* 2.750000 V */
-#define ADS126X_TDAC_3V000000 0x07U /* 3.000000 V */
-#define ADS126X_TDAC_3V500000 0x08U /* 3.500000 V */
-#define ADS126X_TDAC_4V500000 0x09U /* 4.500000 V */
-
-#define ADS126X_TDAC_2V492187 0x11U /* 2.4921875 V */
-#define ADS126X_TDAC_2V484375 0x12U /* 2.484375 V */
-#define ADS126X_TDAC_2V468750 0x13U /* 2.468750 V */
-#define ADS126X_TDAC_2V437500 0x14U /* 2.437500 V */
-#define ADS126X_TDAC_2V375000 0x15U /* 2.375000 V */
-#define ADS126X_TDAC_2V250000 0x16U /* 2.250000 V */
-#define ADS126X_TDAC_2V000000 0x17U /* 2.000000 V */
-#define ADS126X_TDAC_1V500000 0x18U /* 1.500000 V */
-#define ADS126X_TDAC_0V500000 0x19U /* 0.500000 V */
-
-#define ADS126X_TDAC_LEVEL(x) ((x) & 0x1F)
+#define ADS126X_BUILD_MUX(muxp, muxn)                                                              \
+	(((((uint8_t)(muxp)) & ADS126X_MUX_MASK) << ADS126X_MUXP_SHIFT) |                          \
+	 ((((uint8_t)(muxn)) & ADS126X_MUX_MASK)))
 
 LOG_MODULE_REGISTER(adc_ads1263, CONFIG_ADC_LOG_LEVEL);
+
+enum ads126x_adc_engine {
+	ADS126X_ADC_ENGINE_1 = 0,
+	ADS126X_ADC_ENGINE_2 = 1,
+};
+
+enum ads126x_mux_input {
+	ADS126X_MUX_AIN0 = 0x00,
+	ADS126X_MUX_AIN1 = 0x01,
+	ADS126X_MUX_AIN2 = 0x02,
+	ADS126X_MUX_AIN3 = 0x03,
+	ADS126X_MUX_AIN4 = 0x04,
+	ADS126X_MUX_AIN5 = 0x05,
+	ADS126X_MUX_AIN6 = 0x06,
+	ADS126X_MUX_AIN7 = 0x07,
+	ADS126X_MUX_AIN8 = 0x08,
+	ADS126X_MUX_AIN9 = 0x09,
+	ADS126X_MUX_AINCOM = 0x0A,
+	ADS126X_MUX_TEMP = 0x0B,
+	ADS126X_MUX_AVDD = 0x0C,
+	ADS126X_MUX_DVDD = 0x0D,
+	ADS126X_MUX_TDAC = 0x0E,
+	ADS126X_MUX_OPEN = 0x0F,
+};
+
+struct ads126x_channel_state {
+	enum ads126x_adc_engine adc;
+	uint8_t input_positive;
+	uint8_t input_negative;
+	bool configured;
+};
 
 struct ads126x_config {
 	struct spi_dt_spec bus;
@@ -216,6 +218,8 @@ struct ads126x_data {
 	uint8_t cached_mode2;
 
 	uint8_t cached_inpmux;
+
+	struct ads126x_channel_state channels[32];
 };
 
 static int ads126x_spi_write(const struct device *dev, const uint8_t *tx_buf, size_t len)
@@ -357,53 +361,6 @@ static int ads126x_verify_id(const struct device *dev)
 	}
 
 	LOG_INF("ADS126x ID verified: 0x%02X", id);
-	return 0;
-}
-static int ads126x_channel_setup(const struct device *dev,
-				 const struct adc_channel_cfg *channel_cfg)
-{
-
-	LOG_INF("ads126x_channel_setup Start");
-	const struct ads126x_config *config = dev->config;
-
-	if (channel_cfg->channel_id >= ADS126X_MAX_CHANNELS) {
-		LOG_ERR("Channel ID %d exceeds maximum %d", channel_cfg->channel_id,
-			ADS126X_MAX_CHANNELS - 1);
-		return -EINVAL;
-	}
-
-	/* ADC2 channels only on ADS1263 */
-	if (channel_cfg->channel_id >= ADS126X_ADC2_CHANNEL_OFFSET &&
-	    config->chip_id != ADS126X_CHIP_ADS1263) {
-		LOG_ERR("ADC2 channels require ADS1263");
-		return -ENOTSUP;
-	}
-
-	/* Gain validation: ADC1 supports 1, 2, 4, 8, 16, 32 */
-	switch (channel_cfg->gain) {
-	case ADC_GAIN_1:
-	case ADC_GAIN_2:
-	case ADC_GAIN_4:
-	case ADC_GAIN_8:
-	case ADC_GAIN_16:
-	case ADC_GAIN_32:
-		break;
-	default:
-		LOG_ERR("Unsupported gain");
-		return -EINVAL;
-	}
-
-	/* Reference validation */
-	if (channel_cfg->reference == ADC_REF_INTERNAL) {
-		if (!config->internal_vref) {
-			LOG_ERR("Internal reference not enabled in DTS");
-			return -EINVAL;
-		}
-	}
-
-	LOG_DBG("Channel %d configured", channel_cfg->channel_id);
-	LOG_INF("ads126x_channel_setup End");
-
 	return 0;
 }
 
@@ -609,57 +566,20 @@ static void ads126x_clear_drdy(const struct device *dev)
 	}
 }
 
-static int ads126x_wait_drdy_poll(const struct device *dev)
-{
-    const struct ads126x_config *config = dev->config;
-    int ret;
-    int64_t start;
-
-    start = k_uptime_get();
-
-    while ((k_uptime_get() - start) < 100) {
-
-        ret = gpio_pin_get(
-            config->drdy_gpio.port,
-            config->drdy_gpio.pin
-        );
-
-        if (ret < 0) {
-            LOG_ERR("DRDY read error: %d", ret);
-            return ret;
-        }
-
-        /*
-         * Physical ADS1263 DRDY is active LOW.
-         */
-        if (ret == 0) {
-            LOG_INF("DRDY LOW - Conversion Ready");
-            return 0;
-        }
-    }
-
-    LOG_ERR("DRDY polling timeout");
-
-    return -ETIMEDOUT;
-}
-
 static int ads126x_wait_data_ready(const struct device *dev, k_timeout_t timeout)
 {
 	struct ads126x_data *data = dev->data;
 
+	// k_sem_reset(&data->drdy_sem);
+
 	return k_sem_take(&data->drdy_sem, timeout);
-	// int ret = ads126x_wait_drdy_poll(dev);
-
-	// if (ret) {
-	// 	return ret;
-	// }
-
-	// return ret;
 }
 
 static int ads126x_read_channel_adc1(const struct device *dev, uint8_t channel, int32_t *result)
 {
 	const struct ads126x_config *config = dev->config;
+	struct ads126x_data *data = dev->data;
+
 	int ret;
 
 	/* Mux mapping: single-ended channels 0..9 */
@@ -683,6 +603,8 @@ static int ads126x_read_channel_adc1(const struct device *dev, uint8_t channel, 
 	if (ret) {
 		return ret;
 	}
+
+	k_sem_reset(&data->drdy_sem);
 
 	/* Start single conversion */
 	if (config->start_gpio.port != NULL) {
@@ -709,13 +631,6 @@ static int ads126x_read_channel_adc1(const struct device *dev, uint8_t channel, 
 		}
 	}
 
-	// ret = ads126x_send_command(dev, ADS126X_CMD_START1);
-
-	// if (ret) {
-	// 	LOG_ERR("START1 failed: %d", ret);
-	// 	return ret;
-	// }
-
 	LOG_INF("Waiting DRDY using polling");
 
 	/* Wait for DRDY */
@@ -727,9 +642,6 @@ static int ads126x_read_channel_adc1(const struct device *dev, uint8_t channel, 
 	}
 
 	LOG_INF("Conversion completed");
-
-
-	// LOG_INF("R10");
 
 	ret = ads126x_rdata1(dev, result, NULL);
 
@@ -749,6 +661,7 @@ static int ads126x_read_channel_adc1(const struct device *dev, uint8_t channel, 
 static int ads126x_read_channel_adc2(const struct device *dev, uint8_t channel, int32_t *result)
 {
 	const struct ads126x_config *config = dev->config;
+	struct ads126x_data *data = dev->data;
 
 	int ret;
 
@@ -765,6 +678,8 @@ static int ads126x_read_channel_adc2(const struct device *dev, uint8_t channel, 
 	if (ret) {
 		return ret;
 	}
+
+	k_sem_reset(&data->drdy_sem);
 
 	if (config->start_gpio.port != NULL) {
 		ret = gpio_pin_set_dt(&config->start_gpio, 1);
@@ -823,7 +738,8 @@ static int ads126x_perform_read(const struct device *dev, const struct adc_seque
 		return -EINVAL;
 	}
 
-	// LOG_INF("R4");
+	// Need to config Mux here
+
 	while (channels) {
 		uint8_t ch = find_lsb_set(channels) - 1;
 
@@ -835,7 +751,6 @@ static int ads126x_perform_read(const struct device *dev, const struct adc_seque
 
 		if (ch < ADS126X_ADC2_CHANNEL_OFFSET) {
 			/* ADC1 channel */
-			// LOG_INF("R5");
 			ret = ads126x_read_channel_adc1(dev, ch, &result);
 		} else {
 			/* ADC2 channel (ADS1263 only) */
@@ -854,6 +769,119 @@ static int ads126x_perform_read(const struct device *dev, const struct adc_seque
 	}
 
 	return 0;
+}
+static int ads126x_validate_mux_input(uint8_t input)
+{
+	if (input > ADS126X_MUX_OPEN) {
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
+static int ads126x_validate_channel_inputs(const struct adc_channel_cfg *channel_cfg)
+{
+	int ret;
+
+	ret = ads126x_validate_mux_input(channel_cfg->input_positive);
+
+	if (ret != 0) {
+		return ret;
+	}
+
+	ret = ads126x_validate_mux_input(channel_cfg->input_negative);
+
+	if (ret != 0) {
+		return ret;
+	}
+
+	return 0;
+}
+
+static int ads126x_get_adc_engine(uint8_t channel_id, enum ads126x_adc_engine *adc)
+{
+	if (channel_id >= ADS126X_ADC1_CHANNEL_MIN && channel_id <= ADS126X_ADC1_CHANNEL_MAX) {
+
+		*adc = ADS126X_ADC_ENGINE_1;
+		return 0;
+	}
+
+	if (channel_id >= ADS126X_ADC2_CHANNEL_MIN && channel_id <= ADS126X_ADC2_CHANNEL_MAX) {
+
+		*adc = ADS126X_ADC_ENGINE_2;
+		return 0;
+	}
+
+	return -EINVAL;
+}
+
+static int ads126x_configure_mux(const struct device *dev, uint8_t reg, uint8_t input_positive,
+				 uint8_t input_negative)
+{
+	uint8_t mux_value;
+
+	mux_value = ADS126X_BUILD_MUX(input_positive, input_negative);
+
+	LOG_DBG("MUX register 0x%02x = 0x%02x "
+		"(MUXP=%u, MUXN=%u)",
+		reg, mux_value, input_positive, input_negative);
+
+	return ads126x_write_reg(dev, reg, mux_value);
+}
+
+static int ads126x_configure_channel_mux(const struct device *dev,
+					 const struct adc_channel_cfg *channel_cfg)
+{
+	enum ads126x_adc_engine adc;
+	int ret;
+
+	/* Determine ADC1 or ADC2 */
+	ret = ads126x_get_adc_engine(channel_cfg->channel_id, &adc);
+
+	if (ret != 0) {
+		LOG_ERR("Invalid channel ID: %u", channel_cfg->channel_id);
+
+		return ret;
+	}
+
+	/* Validate input selections */
+	ret = ads126x_validate_channel_inputs(channel_cfg);
+
+	if (ret != 0) {
+		LOG_ERR("Invalid MUX input: "
+			"positive=%u negative=%u",
+			channel_cfg->input_positive, channel_cfg->input_negative);
+
+		return ret;
+	}
+
+	/*
+	 * ADC1
+	 *
+	 * channel_id = 0 to 15
+	 */
+	if (adc == ADS126X_ADC_ENGINE_1) {
+
+		LOG_DBG("Channel %u -> ADC1 "
+			"MUXP=%u MUXN=%u",
+			channel_cfg->channel_id, channel_cfg->input_positive,
+			channel_cfg->input_negative);
+
+		return ads126x_configure_mux(dev, ADS126X_REG_INPMUX, channel_cfg->input_positive,
+					     channel_cfg->input_negative);
+	}
+
+	/*
+	 * ADC2
+	 *
+	 * channel_id = 16 to 31
+	 */
+	LOG_DBG("Channel %u -> ADC2 "
+		"MUXP=%u MUXN=%u",
+		channel_cfg->channel_id, channel_cfg->input_positive, channel_cfg->input_negative);
+
+	return ads126x_configure_mux(dev, ADS126X_REG_ADC2MUX, channel_cfg->input_positive,
+				     channel_cfg->input_negative);
 }
 
 static void adc_context_start_sampling(struct adc_context *ctx)
@@ -899,8 +927,6 @@ static int ads126x_read(const struct device *dev, const struct adc_sequence *seq
 static int ads126x_config_power(const struct device *dev)
 {
 	const struct ads126x_config *config = dev->config;
-
-	// TBD - Need to support VBAIS
 
 	uint8_t val;
 
@@ -958,8 +984,6 @@ static int ads126x_config_adc1(const struct device *dev)
 	}
 
 	uint8_t mode1 = (config->adc1_filter << 5) & ADS126X_MODE1_FILTER_MASK;
-
-	// LOG_INF("config->adc1_filter = 0x%02X, mode1 = 0x%02X", config->adc1_filter, mode1);
 
 	/* MODE1: filter selection */
 	ret = ads126x_write_reg(dev, ADS126X_REG_MODE1, mode1);
@@ -1076,6 +1100,80 @@ static void ads126x_data_ready_handler(const struct device *dev, struct gpio_cal
 	LOG_INF(">>> DRDY INTERRUPT <<<");
 
 	k_sem_give(&data->drdy_sem);
+}
+
+static int ads126x_channel_setup(const struct device *dev,
+				 const struct adc_channel_cfg *channel_cfg)
+{
+
+	LOG_INF("ads126x_channel_setup Start");
+	const struct ads126x_config *config = dev->config;
+
+	struct ads126x_data *data = dev->data;
+	enum ads126x_adc_engine adc;
+	int ret;
+
+	if (channel_cfg == NULL) {
+		return -EINVAL;
+	}
+
+	ret = ads126x_get_adc_engine(channel_cfg->channel_id, &adc);
+
+	if (ret != 0) {
+		return ret;
+	}
+
+	ret = ads126x_validate_channel_inputs(channel_cfg);
+
+	if (ret != 0) {
+		return ret;
+	}
+
+	/*
+	 * Store configuration.
+	 *
+	 * This is important because adc_read()
+	 * only gives us sequence.channels.
+	 */
+	data->channels[channel_cfg->channel_id].configured = true;
+
+	data->channels[channel_cfg->channel_id].adc = adc;
+
+	data->channels[channel_cfg->channel_id].input_positive = channel_cfg->input_positive;
+
+	data->channels[channel_cfg->channel_id].input_negative = channel_cfg->input_negative;
+
+	/*
+	 * Configure the ADS126x MUX.
+	 */
+	ret = ads126x_configure_channel_mux(dev, channel_cfg);
+
+	/* Gain validation: ADC1 supports 1, 2, 4, 8, 16, 32 */
+	switch (channel_cfg->gain) {
+	case ADC_GAIN_1:
+	case ADC_GAIN_2:
+	case ADC_GAIN_4:
+	case ADC_GAIN_8:
+	case ADC_GAIN_16:
+	case ADC_GAIN_32:
+		break;
+	default:
+		LOG_ERR("Unsupported gain");
+		return -EINVAL;
+	}
+
+	/* Reference validation */
+	if (channel_cfg->reference == ADC_REF_INTERNAL) {
+		if (!config->internal_vref) {
+			LOG_ERR("Internal reference not enabled in DTS");
+			return -EINVAL;
+		}
+	}
+
+	LOG_DBG("Channel %d configured", channel_cfg->channel_id);
+	LOG_INF("ads126x_channel_setup End");
+
+	return 0;
 }
 
 static int ads126x_init(const struct device *dev)
