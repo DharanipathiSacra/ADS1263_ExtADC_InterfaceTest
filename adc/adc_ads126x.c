@@ -125,8 +125,8 @@
 LOG_MODULE_REGISTER(adc_ads1263, CONFIG_ADC_LOG_LEVEL);
 
 enum ads126x_adc_engine {
-	ADS126X_ADC_ENGINE_1 = 0,
-	ADS126X_ADC_ENGINE_2 = 1,
+	ADS126X_ADC_ENGINE_1 = 0, // 0 -15
+	ADS126X_ADC_ENGINE_2 = 1, // 16-31
 };
 
 enum ads126x_mux_input {
@@ -148,11 +148,15 @@ enum ads126x_mux_input {
 	ADS126X_MUX_OPEN = 0x0F,
 };
 
-struct ads126x_channel_state {
+struct ads126x_channel_config {
 	enum ads126x_adc_engine adc;
 	uint8_t input_positive;
 	uint8_t input_negative;
+	uint8_t channel_id;
 	bool configured;
+	bool isDifferential;
+	uint8_t gain;
+	uint8_t reference;
 };
 
 struct ads126x_config {
@@ -219,7 +223,7 @@ struct ads126x_data {
 
 	uint8_t cached_inpmux;
 
-	struct ads126x_channel_state channels[32];
+	struct ads126x_channel_config channels[32];
 };
 
 static int ads126x_spi_write(const struct device *dev, const uint8_t *tx_buf, size_t len)
@@ -1213,6 +1217,7 @@ static int ads126x_init(const struct device *dev)
 	gpio_init_callback(&data->drdy_callback, ads126x_data_ready_handler,
 			   BIT(config->drdy_gpio.pin));
 
+			   
 	/* Register callback */
 	ret = gpio_add_callback(config->drdy_gpio.port, &data->drdy_callback);
 
