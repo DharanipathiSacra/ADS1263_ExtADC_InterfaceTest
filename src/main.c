@@ -3,9 +3,11 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  */
+
 #include <zephyr/kernel.h>
 #include <zephyr/device.h>
 #include <zephyr/drivers/adc.h>
+#include <zephyr/drivers/adc/ads126x.h>
 
 #define ADS1263_NODE DT_NODELABEL(ads1263)
 
@@ -23,16 +25,16 @@ int main(void)
         .acquisition_time = ADC_ACQ_TIME_DEFAULT,
 		.differential = false,
 #if defined(CONFIG_ADC_CONFIGURABLE_INPUTS)
-        .input_positive = 0, /* AIN0 */
-        .input_negative = 13, /* AVSS */
+        .input_positive = ADS126X_MUX_AIN0, /* AIN0 */
 #endif
     };
 
     struct adc_sequence sequence = {
-        .channels = BIT(0),
+        .channels = 0,
         .buffer = &sample,
         .buffer_size = sizeof(sample),
         .resolution = 32,
+        .oversampling = 0,
     };
 
     printf("ADS1263 Driver Validation\r\n");
@@ -60,6 +62,6 @@ int main(void)
             // once = false;
             adc_read(dev, &sequence);
         }
-        k_sleep(K_SECONDS(5));
+        k_sleep(K_SECONDS(1));
     }
 }
