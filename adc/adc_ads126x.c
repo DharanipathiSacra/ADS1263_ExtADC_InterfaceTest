@@ -37,16 +37,21 @@ enum ads126x_chip_id {
 
 /* MODE 2 Configuration Register */
 
-#define ADS126X_MODE2_GAIN_1  (0U << 4)
-#define ADS126X_MODE2_GAIN_2  (1U << 4)
-#define ADS126X_MODE2_GAIN_4  (2U << 4)
-#define ADS126X_MODE2_GAIN_8  (3U << 4)
-#define ADS126X_MODE2_GAIN_16 (4U << 4)
-#define ADS126X_MODE2_GAIN_32 (5U << 4)
+#define ADS126X_MODE2_GAIN_1  0U
+#define ADS126X_MODE2_GAIN_2  1U
+#define ADS126X_MODE2_GAIN_4  2U
+#define ADS126X_MODE2_GAIN_8  3U
+#define ADS126X_MODE2_GAIN_16 4U
+#define ADS126X_MODE2_GAIN_32 5U
 
 /* ADC1 Channel Id: (0  - 15) */
 #define ADS126X_ADC1_CHANNEL_MIN 0U
 #define ADS126X_ADC1_CHANNEL_MAX 15U
+#define ADS126X_ADC1_RESOLUTION 32U
+
+#define ADS126X_MODE0_PULSE_CONVERSION BIT(6)
+#define ADS126X_MODE0_CHOP_DISABLED    0U
+#define ADS126X_MODE0_DELAY_DEFAULT    0U
 
 #define ADS126X_REF_INTERNAL 2500 /*< Internal reference voltage in mV */
 
@@ -91,8 +96,6 @@ enum ads126x_chip_id {
 #define ADS126X_MODE2_GAIN_SHIFT 4
 #define ADS126X_MODE2_DR_MASK    0x0F
 
-#define ADS126X_START_DELAY_US 1000U
-
 /* Register Addresses */
 #define ADS126X_REG_ID        0x00
 #define ADS126X_REG_POWER     0x01
@@ -110,21 +113,19 @@ enum ads126x_chip_id {
 	(((((uint8_t)(muxp)) & ADS126X_MUX_MASK) << ADS126X_MUXP_SHIFT) |                          \
 	 ((((uint8_t)(muxn)) & ADS126X_MUX_MASK)))
 
-LOG_MODULE_REGISTER(adc_ads1263, CONFIG_ADC_LOG_LEVEL);
+LOG_MODULE_REGISTER(adc_ads126x, CONFIG_ADC_LOG_LEVEL);
 
 struct ads126x_config {
 	struct spi_dt_spec bus;
 
 	struct gpio_dt_spec drdy_gpio;
 	struct gpio_dt_spec reset_gpio;
-	struct gpio_dt_spec start_gpio;
 
 	enum ads126x_chip_id chip_id;
 
 	uint8_t adc1_data_rate; /* MODE2 DR field value */
 	uint8_t adc1_filter;    /* MODE1 FILTER field value */
 	uint8_t adc1_ref_mux;   /* REFMUX encoded value */
-	bool adc1_pga_bypass;   /* PGA bypass for low noise */
 
 	/* Interface options */
 	uint8_t crc_mode; /* INTERFACE.CRC_EN field */
@@ -143,18 +144,12 @@ struct ads126x_channel_config {
 
 struct ads126x_data {
 
-	struct adc_context ctx;
-
-	const struct device *dev;
-
-	int32_t *buffer;
-	int32_t *repeat_buffer;
-
-	struct k_sem drdy_sem;
-
-	struct gpio_callback drdy_callback;
-
 	struct ads126x_channel_config channels[ADS126X_ADC1_CHANNEL_MAX + 1];
+	struct gpio_callback drdy_callback;
+	const struct device *dev;
+	struct adc_context ctx;
+	struct k_sem drdy_sem;
+	int32_t *buffer;
 };
 
 static int ads126x_spi_write(const struct device *dev, const uint8_t *tx_buf, size_t len)
@@ -406,27 +401,7 @@ static int ads126x_wait_data_ready(const struct device *dev, k_timeout_t timeout
 	return k_sem_take(&data->drdy_sem, timeout);
 }
 
-static int ads126x_config_adc1_gain(const struct device *dev, uint8_t channel)
-{
-	struct ads126x_data *data = dev->data;
-
-	uint8_t mode2;
-
-	int ret = ads126x_read_reg(dev, ADS126X_REG_MODE2, &mode2);
-
-	if (ret) {
-		return ret;
-	}
-
-	mode2 |= ((data->channels[channel].gain << ADS126X_MODE2_GAIN_SHIFT) &
-		  ADS126X_MODE2_GAIN_MASK);
-
-	ret = ads126x_write_reg(dev, ADS126X_REG_MODE2, mode2);
-
-	return ret;
-}
-
-static int ads126x_config_voltage_reference(const struct device *dev, uint8_t channel)
+static int ads126x_config_voltage_reference(const struct device *dev)
 {
 	struct ads126x_data *data = dev->data;
 	uint8_t val;
@@ -437,31 +412,34 @@ static int ads126x_config_voltage_reference(const struct device *dev, uint8_t ch
 		return ret;
 	}
 
-	if (data->channels[channel].reference == ADC_REF_INTERNAL) {
-		val |= ADS126X_POWER_INTREF;
-	} else {
-		/* Need to enhance*/
-		val &= ~ADS126X_POWER_INTREF;
+	val |= ADS126X_POWER_INTREF;
+
+	return ads126x_write_reg(dev, ADS126X_REG_POWER, val);
+}
+
+static int ads126x_config_adc1_gain(const struct device *dev, uint8_t channel)
+{
+	struct ads126x_data *data = dev->data;
+	uint8_t mode2;
+	int ret;
+
+	ret = ads126x_read_reg(dev, ADS126X_REG_MODE2, &mode2);
+	if (ret) {
+		return ret;
 	}
 
-	ret = ads126x_write_reg(dev, ADS126X_REG_POWER, val);
+	mode2 &= ~ADS126X_MODE2_GAIN_MASK;
+	mode2 |= (data->channels[channel].gain << ADS126X_MODE2_GAIN_SHIFT) &
+		 ADS126X_MODE2_GAIN_MASK;
 
-	return ret;
+	return ads126x_write_reg(dev, ADS126X_REG_MODE2, mode2);
 }
 
 static int ads126x_read_channel_adc1(const struct device *dev, uint8_t channel, int32_t *result)
 {
-	const struct ads126x_config *config = dev->config;
 	struct ads126x_data *data = dev->data;
 
 	int ret;
-
-	ret = ads126x_config_voltage_reference(dev, channel);
-
-	/* Need to check the ret is validated as same in all places */
-	if (ret) {
-		return ret;
-	}
 
 	ret = ads126x_config_adc1_gain(dev, channel);
 
@@ -472,27 +450,13 @@ static int ads126x_read_channel_adc1(const struct device *dev, uint8_t channel, 
 	k_sem_reset(&data->drdy_sem);
 
 	/* Start single conversion */
-	if (config->start_gpio.port != NULL) {
-		ret = gpio_pin_set_dt(&config->start_gpio, 1);
-		if (ret) {
-			return ret;
-		}
+	ads126x_clear_drdy(dev);
 
-		k_sleep(K_USEC(ADS126X_START_DELAY_US));
+	ret = ads126x_send_command(dev, ADS126X_CMD_START1);
 
-		ret = gpio_pin_set_dt(&config->start_gpio, 0);
-		if (ret) {
-			return ret;
-		}
-	} else {
-		ads126x_clear_drdy(dev);
-
-		ret = ads126x_send_command(dev, ADS126X_CMD_START1);
-
-		if (ret) {
-			return ret;
-		}
-	}
+	if (ret) {
+		return ret;
+	}	
 
 	/* Wait for DRDY */
 	ret = ads126x_wait_data_ready(dev, ADS126X_DRDY_WAIT_TIMEOUT_MS);
@@ -609,6 +573,20 @@ static int ads126x_perform_read(const struct device *dev, const struct adc_seque
 		return -EINVAL;
 	}
 
+	if (sequence->buffer_size < sizeof(int32_t)) {
+		return -ENOMEM;
+	}
+
+	if (sequence->resolution != ADS126X_ADC1_RESOLUTION) {
+		LOG_ERR("Unsupported resolution: %u", sequence->resolution);
+		return -EINVAL;
+	}
+
+	if (!data->channels[channels].configured) {
+		LOG_ERR("ADC channel %u is not configured", channels);
+		return -EINVAL;
+	}
+
 	ret = ads126x_configure_input_mux(dev, channels);
 
 	if (ret) {
@@ -618,7 +596,7 @@ static int ads126x_perform_read(const struct device *dev, const struct adc_seque
 
 	int32_t result = 0;
 
-	if (channels < ADS126X_ADC1_CHANNEL_MAX) {
+	if (channels <= ADS126X_ADC1_CHANNEL_MAX) {
 		/* ADC1 channel */
 		ret = ads126x_read_channel_adc1(dev, channels, &result);
 	}
@@ -634,7 +612,7 @@ static int ads126x_perform_read(const struct device *dev, const struct adc_seque
 }
 static int ads126x_validate_mux_input(uint8_t input)
 {
-	if (input > ADS126X_MUX_OPEN) {
+	if (input > ADS126X_MUX_AINCOM) {
 		return -EINVAL;
 	}
 
@@ -707,8 +685,6 @@ static int ads126x_validate_channel_inputs(const struct adc_channel_cfg *channel
 	/* Need To check this*/
 	switch (channel_cfg->reference) {
 	case ADC_REF_INTERNAL:
-	case ADC_REF_EXTERNAL0:
-	case ADC_REF_EXTERNAL1:
 		break;
 	default:
 		LOG_ERR("Unsupported reference");
@@ -726,6 +702,9 @@ static void adc_context_start_sampling(struct adc_context *ctx)
 
 	if (ret) {
 		LOG_ERR("ads126x_perform_read failed: %d", ret);
+		adc_context_complete(ctx, ret);
+		return;
+
 	}
 
 	adc_context_on_sampling_done(ctx, data->dev);
@@ -733,16 +712,18 @@ static void adc_context_start_sampling(struct adc_context *ctx)
 
 static void adc_context_update_buffer_pointer(struct adc_context *ctx, bool repeat_sampling)
 {
-	struct ads126x_data *data = CONTAINER_OF(ctx, struct ads126x_data, ctx);
-
-	if (repeat_sampling) {
-		data->buffer = data->repeat_buffer;
-	}
+	ARG_UNUSED(ctx);
+	ARG_UNUSED(repeat_sampling);
 }
 
 static int ads126x_read(const struct device *dev, const struct adc_sequence *sequence)
 {
 	struct ads126x_data *data = dev->data;
+
+	if (sequence->options != NULL) {
+		LOG_ERR("ADC sequence options are not supported");
+		return -ENOTSUP;
+	}
 
 	adc_context_lock(&data->ctx, false, NULL);
 
@@ -775,6 +756,8 @@ static int ads126x_config_interface(const struct device *dev)
 		val &= ~ADS126X_INTF_STATUS;
 	}
 
+	val &= ~ADS126X_INTF_CRC_MASK;
+
 	val |= (config->crc_mode & ADS126X_INTF_CRC_MASK);
 
 	ret = ads126x_write_reg(dev, ADS126X_REG_INTERFACE, val);
@@ -788,7 +771,9 @@ static int ads126x_config_adc1(const struct device *dev)
 	int ret;
 
 	/* MODE0: pulse conversion, default delay */
-	ret = ads126x_write_reg(dev, ADS126X_REG_MODE0, 0x43);
+	uint8_t mode0 = ADS126X_MODE0_PULSE_CONVERSION | ADS126X_MODE0_DELAY_DEFAULT;
+
+	ret = ads126x_write_reg(dev, ADS126X_REG_MODE0, mode0);
 	if (ret) {
 		return ret;
 	}
@@ -804,10 +789,6 @@ static int ads126x_config_adc1(const struct device *dev)
 	/* MODE2: PGA gain + data rate */
 	uint8_t mode2 = 0;
 
-	if (config->adc1_pga_bypass) {
-		mode2 |= ADS126X_MODE2_BYPASS;
-	}
-
 	mode2 |= (config->adc1_data_rate & ADS126X_MODE2_DR_MASK);
 
 	ret = ads126x_write_reg(dev, ADS126X_REG_MODE2, mode2);
@@ -815,10 +796,14 @@ static int ads126x_config_adc1(const struct device *dev)
 		return ret;
 	}
 
-	/* REFMUX */
-	ret = ads126x_write_reg(dev, ADS126X_REG_REFMUX, config->adc1_ref_mux);
+	ret = ads126x_config_voltage_reference(dev);
 
-	return ret;
+	/* Need to check the ret is validated as same in all places */
+	if (ret) {
+		return ret;
+	}
+
+	return ads126x_write_reg(dev, ADS126X_REG_REFMUX, config->adc1_ref_mux);
 }
 
 static void ads126x_data_ready_handler(const struct device *dev, struct gpio_callback *gpio_cb,
@@ -889,7 +874,6 @@ static int ads126x_init(const struct device *dev)
 	adc_context_init(&data->ctx);
 
 	/* Verify peripherals */
-
 	if (!spi_is_ready_dt(&config->bus)) {
 		LOG_ERR("SPI not ready");
 		return -ENODEV;
@@ -942,16 +926,6 @@ static int ads126x_init(const struct device *dev)
 		gpio_pin_set_dt(&config->reset_gpio, 1);
 	}
 
-	if (config->start_gpio.port != NULL) {
-		if (!gpio_is_ready_dt(&config->start_gpio)) {
-			LOG_ERR("Start GPIO not ready");
-			return -ENODEV;
-		}
-		ret = gpio_pin_configure_dt(&config->start_gpio, GPIO_OUTPUT_INACTIVE);
-		if (ret) {
-			return ret;
-		}
-	}
 	/* Reset device */
 	ret = ads126x_reset(dev);
 
@@ -1008,12 +982,10 @@ static DEVICE_API(adc, ads126x_driver_api) = {
 					    SPI_WORD_SET(8) | SPI_TRANSFER_MSB | SPI_MODE_CPHA),   \
 		.drdy_gpio = GPIO_DT_SPEC_INST_GET(inst, drdy_gpios),                              \
 		.reset_gpio = GPIO_DT_SPEC_INST_GET_OR(inst, reset_gpios, {0}),                    \
-		.start_gpio = GPIO_DT_SPEC_INST_GET_OR(inst, start_gpios, {0}),                    \
 		.chip_id = chip_type,                                                              \
 		.adc1_data_rate = DT_INST_PROP(inst, adc1_data_rate),                              \
 		.adc1_filter = DT_INST_PROP(inst, adc1_filter),                                    \
 		.adc1_ref_mux = DT_INST_PROP(inst, adc1_ref_mux),                                  \
-		.adc1_pga_bypass = DT_INST_PROP(inst, adc1_pga_bypass),                            \
 		.crc_mode = DT_INST_PROP(inst, crc_mode),                                          \
 		.status_byte = DT_INST_PROP(inst, status_byte),                                    \
 	};                                                                                         \

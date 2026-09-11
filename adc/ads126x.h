@@ -26,8 +26,6 @@ extern "C" {
  * @{
  */
 
-#define ADS126X_ADC1_RESOLUTION 32U
-
 enum ads126x_mux_input {
 	ADS126X_MUX_AIN0 = 0x00,
 	ADS126X_MUX_AIN1 = 0x01,
@@ -83,4 +81,4 @@ enum ads126x_mux_input {
 }
 #endif
 
-#endif /* INCLUDE_ESF_DRIVERS_ADC_ADS126X_H */
+#endif /* ZEPHYR_INCLUDE_DRIVERS_ADC_ADS126X_H_ */

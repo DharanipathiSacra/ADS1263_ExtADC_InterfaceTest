@@ -16,11 +16,6 @@ compatible: "ti,ads1262"
 include:
   - name: spi-device.yaml
   - name: ti,ads126x-common.yaml
-    property-blocklist:
-      # ADC2 properties are not applicable to ADS1262
-      - adc2-data-rate
-      - adc2-gain
-      - adc2-ref-mux
 
 properties:
   chip-id:
@@ -43,9 +38,7 @@ properties:
 #         drdy-gpios  = <&gpiob 0 GPIO_ACTIVE_LOW>;
 #         reset-gpios = <&gpiob 1 GPIO_ACTIVE_LOW>;
 #
-#         internal-vref;
 #         adc1-data-rate = <6>;   /* 60 SPS */
-#         adc1-gain      = <0>;   /* 1x    */
 #         adc1-filter    = <4>;   /* FIR   */
 #         status-byte;
 #     };

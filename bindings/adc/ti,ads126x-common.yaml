@@ -21,6 +21,7 @@ properties:
   # ------------------------------------------------------------------
   drdy-gpios:
     type: phandle-array
+    required: true
     description: |
       Active-low DRDY interrupt output from the ADC.
       When asserted (low), a conversion result is ready.
@@ -32,23 +33,6 @@ properties:
       Active-low hardware /RESET line.  When present the driver
       asserts this GPIO for ≥10 µs during init.
       If omitted a software RESET command is issued instead.
-
-  start-gpios:
-    type: phandle-array
-    description: |
-      START/SYNC pin.  When present the driver pulses this GPIO
-      to trigger conversions rather than using the SPI START1/START2
-      commands.  Leave unconnected (tie to GND or AVDD per schematic)
-      when not used.
-
-  # ------------------------------------------------------------------
-  # Voltage reference
-  # ------------------------------------------------------------------
-  internal-vref:
-    type: boolean
-    description: |
-      Enable the on-chip 2.5 V precision reference (POWER.INTREF = 1).
-      When true, vref-mv is ignored.  Default: false (use external ref).
 
   vref-mv:
     type: int
@@ -85,18 +69,6 @@ properties:
         14 = 19200 SPS
         15 = 38400 SPS
 
-  adc1-gain:
-    type: int
-    default: 0
-    description: |
-      ADC1 PGA gain setting.  Written to MODE2[6:4].
-        0 = 1   (default)
-        1 = 2
-        2 = 4
-        3 = 8
-        4 = 16
-        5 = 32
-
   adc1-filter:
     type: int
     default: 4
@@ -107,13 +79,6 @@ properties:
         2 = SINC3
         3 = SINC4
         4 = FIR   (default – lowest noise at low ODR)
-
-  adc1-pga-bypass:
-    type: boolean
-    description: |
-      Bypass the ADC1 PGA (MODE2.BYPASS = 1).
-      Reduces noise and input impedance constraints at the cost
-      of fixed unity gain.
 
   adc1-ref-mux:
     type: int
