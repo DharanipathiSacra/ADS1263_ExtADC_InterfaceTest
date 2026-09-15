@@ -16,8 +16,6 @@
         drdy-gpios = <&gpioc 12 GPIO_ACTIVE_LOW>;
 
         reset-gpios = <&gpioa 10 GPIO_ACTIVE_LOW>;
-        adc1-ref-mux = <4>;
-
         #io-channel-cells = <1>;
     };
 };

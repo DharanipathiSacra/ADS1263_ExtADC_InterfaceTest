@@ -104,6 +104,8 @@ enum ads126x_chip_id {
 #define ADS126X_REG_INPMUX    0x06
 #define ADS126X_REG_REFMUX    0x0F
 
+#define ADS126X_REFMUX_DEFAULT 0x04 /* RMUXN is set to AVSS to measure value wit respeting with AVSS*/
+
 #define ADS126X_MUXP_SHIFT 4U
 #define ADS126X_MUX_MASK   0x0FU
 
@@ -114,23 +116,20 @@ enum ads126x_chip_id {
 LOG_MODULE_REGISTER(adc_ads126x, CONFIG_ADC_LOG_LEVEL);
 
 struct ads126x_config {
-	struct spi_dt_spec bus;
-
-	struct gpio_dt_spec drdy_gpio;
 	struct gpio_dt_spec reset_gpio;
-
+	struct gpio_dt_spec drdy_gpio;
 	enum ads126x_chip_id chip_id;
-	uint8_t adc1_ref_mux; /* REFMUX encoded value */
+	struct spi_dt_spec bus;
 };
 
 struct ads126x_channel_config {
 	uint8_t input_positive;
 	uint8_t input_negative;
-	uint8_t channel_id;
-	bool configured;
 	bool isDifferential;
-	uint8_t gain;
+	uint8_t channel_id;
 	uint8_t reference;
+	bool configured;
+	uint8_t gain;
 };
 
 struct ads126x_data {
@@ -711,7 +710,6 @@ static int ads126x_config_interface(const struct device *dev)
 
 static int ads126x_config_adc1(const struct device *dev)
 {
-	const struct ads126x_config *config = dev->config;
 	int ret;
 
 	/* MODE0: pulse conversion, default delay */
@@ -748,7 +746,7 @@ static int ads126x_config_adc1(const struct device *dev)
 		return ret;
 	}
 
-	return ads126x_write_reg(dev, ADS126X_REG_REFMUX, config->adc1_ref_mux);
+	return ads126x_write_reg(dev, ADS126X_REG_REFMUX, ADS126X_REFMUX_DEFAULT);
 }
 
 static void ads126x_data_ready_handler(const struct device *dev, struct gpio_callback *gpio_cb,
@@ -926,7 +924,6 @@ static DEVICE_API(adc, ads126x_driver_api) = {
 		.drdy_gpio = GPIO_DT_SPEC_INST_GET(inst, drdy_gpios),                              \
 		.reset_gpio = GPIO_DT_SPEC_INST_GET_OR(inst, reset_gpios, {0}),                    \
 		.chip_id = chip_type,                                                              \
-		.adc1_ref_mux = DT_INST_PROP(inst, adc1_ref_mux),                                  \
 	};                                                                                         \
 	static struct ads126x_data chip_type##_data_##inst = {                                     \
 		ADC_CONTEXT_INIT_LOCK(chip_type##_data_##inst, ctx),                               \

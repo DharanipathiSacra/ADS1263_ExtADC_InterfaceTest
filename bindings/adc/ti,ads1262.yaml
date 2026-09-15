@@ -2,12 +2,6 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 # Device-tree binding for the Texas Instruments ADS1262.
-#
-# ADS1262 — 32-bit 38.4 kSPS single-channel delta-sigma ADC
-#   • ADC1: 32-bit, up to 38.4 kSPS, 10-channel MUX, PGA (1..32)
-#   • No ADC2, no GPIO, no AC excitation, no TDAC
-#   • SPI interface, DRDY interrupt output
-#
 
 description: Texas Instruments ADS1262 32-bit Precision ADC
 
@@ -37,9 +31,5 @@ properties:
 #
 #         drdy-gpios  = <&gpiob 0 GPIO_ACTIVE_LOW>;
 #         reset-gpios = <&gpiob 1 GPIO_ACTIVE_LOW>;
-#
-#         adc1-data-rate = <6>;   /* 60 SPS */
-#         adc1-filter    = <4>;   /* FIR   */
-#         status-byte;
 #     };
 # };
