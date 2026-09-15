@@ -30,7 +30,7 @@ int main(void)
     };
 
     struct adc_sequence sequence = {
-        .channels = 0,
+        .channels = 1,
         .buffer = &sample,
         .buffer_size = sizeof(sample),
         .resolution = 32,
