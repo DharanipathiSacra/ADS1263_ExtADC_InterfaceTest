@@ -50,27 +50,20 @@ enum ads126x_chip_id {
 #define ADS126X_ADC1_RESOLUTION  32U
 
 #define ADS126X_MODE0_PULSE_CONVERSION BIT(6)
-#define ADS126X_MODE0_CHOP_DISABLED    0U
 #define ADS126X_MODE0_DELAY_DEFAULT    0U
 
 #define ADS126X_REF_INTERNAL 2500 /*< Internal reference voltage in mV */
 
-#define ADS126X_DRDY_WAIT_TIMEOUT_MS         K_MSEC(250U)
-#define ADS126X_MAX_CAL_DRDY_WAIT_TIMEOUT_MS K_MSEC(10000U)
-#define ADS126X_RESET_DELAY_MS               10U
+#define ADS126X_DRDY_WAIT_TIMEOUT_MS K_MSEC(250U)
+#define ADS126X_RESET_DELAY_MS       10U
 
 /* System Commands */
 #define ADS126X_CMD_RESET 0x06
 
 /* ADC1 Commands */
-#define ADS126X_CMD_START1  0x08
-#define ADS126X_CMD_STOP1   0x0A
-#define ADS126X_CMD_RDATA1  0x12
-#define ADS126X_CMD_SFOCAL1 0x19
-
-/* Register Commands */
-#define ADS126X_CMD_RREG 0x20
-#define ADS126X_CMD_WREG 0x40
+#define ADS126X_CMD_START1 0x08
+#define ADS126X_CMD_STOP1  0x0A
+#define ADS126X_CMD_RDATA1 0x12
 
 /* Power Register */
 #define ADS126X_POWER_INTREF BIT(0)
@@ -80,15 +73,13 @@ enum ads126x_chip_id {
 #define ADS126X_INTF_CRC_MASK           0x03
 #define ADS126X_INTF_NO_CHECKSUM_NO_CRC 0x00
 
-/* RDATA1: cmd(1) + status(1) + data(4) + crc(1) = 7 bytes max */
-#define ADS126X_RDATA1_NO_STATUS_NO_CRC 5 /* cmd + 4 bytes data */
+#define ADS126X_RDATA1_NO_STATUS_NO_CRC 5 /* cmd 1 byte + 4 bytes data */
 
 /* MODE1 - Filter */
 #define ADS126X_MODE1_FILTER_MASK 0xE0
 #define ADS126X_MODE1_FIR_FILTER  0x04
 
 /* MODE2 - PGA / Data Rate */
-#define ADS126X_MODE2_BYPASS     BIT(7)
 #define ADS126X_MODE2_GAIN_MASK  0x70u
 #define ADS126X_MODE2_GAIN_SHIFT 4
 #define ADS126X_MODE2_DR_MASK    0x0F
@@ -104,7 +95,11 @@ enum ads126x_chip_id {
 #define ADS126X_REG_INPMUX    0x06
 #define ADS126X_REG_REFMUX    0x0F
 
-#define ADS126X_REFMUX_DEFAULT 0x04 /* RMUXN is set to AVSS to measure value wit respeting with AVSS*/
+/* Register Commands */
+#define ADS126X_CMD_RREG 0x20
+#define ADS126X_CMD_WREG 0x40
+
+#define ADS126X_REFMUX_DEFAULT 0x04 /* RMUXN is set to AVSS to measure Voltage WRT AVSS */
 
 #define ADS126X_MUXP_SHIFT 4U
 #define ADS126X_MUX_MASK   0x0FU
@@ -150,7 +145,6 @@ static int ads126x_spi_write(const struct device *dev, const uint8_t *tx_buf, si
 		.buf = (void *)tx_buf,
 		.len = len,
 	};
-
 	struct spi_buf_set tx = {
 		.buffers = &tx_bufs,
 		.count = 1,
@@ -170,25 +164,20 @@ static int ads126x_spi_transceive(const struct device *dev, const uint8_t *tx_bu
 		.buf = (void *)tx_buf,
 		.len = len,
 	};
-
 	struct spi_buf rx = {
 		.buf = rx_buf,
 		.len = len,
 	};
-
 	struct spi_buf_set tx_set = {
 		.buffers = &tx,
 		.count = 1,
 	};
-
 	struct spi_buf_set rx_set = {
 		.buffers = &rx,
 		.count = 1,
 	};
 
-	int ret = spi_transceive_dt(&config->bus, &tx_set, &rx_set);
-
-	return ret;
+	return spi_transceive_dt(&config->bus, &tx_set, &rx_set);
 }
 
 static int ads126x_send_command(const struct device *dev, uint8_t command)
@@ -199,9 +188,7 @@ static int ads126x_send_command(const struct device *dev, uint8_t command)
 static int ads126x_read_reg(const struct device *dev, uint8_t reg, uint8_t *value)
 {
 	uint8_t tx[3] = {ADS126X_CMD_RREG | reg, 0x00, 0x00};
-
 	uint8_t rx[3];
-
 	int ret = ads126x_spi_transceive(dev, tx, rx, sizeof(tx));
 
 	if (ret) {
@@ -257,7 +244,6 @@ static int ads126x_reset(const struct device *dev)
 static int ads126x_verify_id(const struct device *dev)
 {
 	const struct ads126x_config *config = dev->config;
-
 	uint8_t id;
 	int ret;
 
@@ -269,8 +255,6 @@ static int ads126x_verify_id(const struct device *dev)
 
 	uint8_t dev_id = id & ADS126X_ID_DEV_MASK;
 
-	LOG_DBG("ADS126x Device ID register: 0x%02X", id);
-
 	if (config->chip_id == ADS126X_CHIP_ADS1262 && dev_id != ADS126X_ID_ADS1262) {
 		LOG_ERR("Expected ADS1262 (0x00) but got 0x%02X", dev_id);
 		return -EINVAL;
@@ -280,16 +264,15 @@ static int ads126x_verify_id(const struct device *dev)
 		return -EINVAL;
 	}
 
-	LOG_INF("ADS126x ID verified: 0x%02X", id);
 	return 0;
 }
 
 static int ads126x_rdata1(const struct device *dev, int32_t *result)
 {
-	uint8_t rx[7] = {0};
 	uint8_t tx[7] = {ADS126X_CMD_RDATA1, 0, 0, 0, 0, 0, 0};
 	size_t frame_len = ADS126X_RDATA1_NO_STATUS_NO_CRC;
 	uint8_t data_offset = 1;
+	uint8_t rx[7] = {0};
 
 	int ret = ads126x_spi_transceive(dev, tx, rx, frame_len);
 
@@ -297,12 +280,12 @@ static int ads126x_rdata1(const struct device *dev, int32_t *result)
 		return ret;
 	}
 
-	/* Reconstruct 32-bit signed integer (big-endian on wire) */
 	*result = (int32_t)((uint32_t)rx[data_offset] << 24 | (uint32_t)rx[data_offset + 1] << 16 |
 			    (uint32_t)rx[data_offset + 2] << 8 | (uint32_t)rx[data_offset + 3]);
 
 	double voltage_v = ((double)*result * 2.5) / (double)INT32_MAX;
 
+	// Need to remove
 	LOG_INF("result=%d voltage=%.6f V\r\n", *result, voltage_v);
 
 	return 0;
@@ -320,15 +303,12 @@ static int ads126x_wait_data_ready(const struct device *dev, k_timeout_t timeout
 {
 	struct ads126x_data *data = dev->data;
 
-	/* k_sem_reset(&data->drdy_sem); */
-
 	return k_sem_take(&data->drdy_sem, timeout);
 }
 
 static int ads126x_config_voltage_reference(const struct device *dev)
 {
 	uint8_t val;
-
 	int ret = ads126x_read_reg(dev, ADS126X_REG_POWER, &val);
 
 	if (ret) {
@@ -385,7 +365,6 @@ static int ads126x_get_sequence_channel(const struct adc_sequence *sequence, uin
 static int ads126x_read_channel_adc1(const struct device *dev, uint8_t channel, int32_t *result)
 {
 	struct ads126x_data *data = dev->data;
-
 	int ret;
 
 	ret = ads126x_config_adc1_gain(dev, channel);
@@ -423,9 +402,7 @@ static int ads126x_read_channel_adc1(const struct device *dev, uint8_t channel, 
 		return ret;
 	}
 
-	ret = ads126x_send_command(dev, ADS126X_CMD_STOP1);
-
-	return ret;
+	return ads126x_send_command(dev, ADS126X_CMD_STOP1);
 }
 
 static int ads126x_input_to_mux(uint8_t input, uint8_t *mux)
@@ -459,10 +436,7 @@ static int ads126x_input_to_mux(uint8_t input, uint8_t *mux)
 static int ads126x_configure_input_mux(const struct device *dev, uint8_t channel)
 {
 	struct ads126x_data *data = dev->data;
-
-	uint8_t muxp;
-	uint8_t muxn;
-	uint8_t inpmux;
+	uint8_t inpmux, muxp, muxn;
 	int ret;
 
 	if (data == NULL) {
@@ -500,19 +474,16 @@ static int ads126x_configure_input_mux(const struct device *dev, uint8_t channel
 
 	inpmux = ADS126X_INPMUX_MUXP(muxp) | ADS126X_INPMUX_MUXN(muxn);
 
-	LOG_DBG("Configure INPMUX: "
-		"P=%u N=%u REG=0x%02x",
-		muxp, muxn, inpmux);
-
 	return ads126x_write_reg(dev, ADS126X_REG_INPMUX, inpmux);
 }
 
 static int ads126x_perform_read(const struct device *dev, const struct adc_sequence *sequence)
 {
 	struct ads126x_data *data = dev->data;
-
 	uint8_t channel;
-	int ret = ads126x_get_sequence_channel(sequence, &channel);
+	int ret;
+
+	ret = ads126x_get_sequence_channel(sequence, &channel);
 
 	if (ret) {
 		return ret;
@@ -583,6 +554,8 @@ static int ads126x_get_gain_value(uint8_t gain)
 		ret = ADS126X_MODE2_GAIN_4;
 		break;
 	case ADC_GAIN_8:
+		ret = ADS126X_MODE2_GAIN_8;
+		break;
 	case ADC_GAIN_16:
 		ret = ADS126X_MODE2_GAIN_16;
 		break;
@@ -631,7 +604,6 @@ static int ads126x_validate_channel_inputs(const struct adc_channel_cfg *channel
 		return -EINVAL;
 	}
 
-	/* Need To check this*/
 	switch (channel_cfg->reference) {
 	case ADC_REF_INTERNAL:
 		break;
@@ -646,7 +618,6 @@ static int ads126x_validate_channel_inputs(const struct adc_channel_cfg *channel
 static void adc_context_start_sampling(struct adc_context *ctx)
 {
 	struct ads126x_data *data = CONTAINER_OF(ctx, struct ads126x_data, ctx);
-
 	int ret = ads126x_perform_read(data->dev, &ctx->sequence);
 
 	if (ret) {
@@ -689,8 +660,9 @@ static int ads126x_read(const struct device *dev, const struct adc_sequence *seq
 static int ads126x_config_interface(const struct device *dev)
 {
 	uint8_t val;
+	int ret;
 
-	int ret = ads126x_read_reg(dev, ADS126X_REG_INTERFACE, &val);
+	ret = ads126x_read_reg(dev, ADS126X_REG_INTERFACE, &val);
 
 	if (ret) {
 		return ret;
@@ -703,9 +675,7 @@ static int ads126x_config_interface(const struct device *dev)
 
 	val |= (ADS126X_INTF_NO_CHECKSUM_NO_CRC & ADS126X_INTF_CRC_MASK);
 
-	ret = ads126x_write_reg(dev, ADS126X_REG_INTERFACE, val);
-
-	return ret;
+	return ads126x_write_reg(dev, ADS126X_REG_INTERFACE, val);
 }
 
 static int ads126x_config_adc1(const struct device *dev)
@@ -741,7 +711,6 @@ static int ads126x_config_adc1(const struct device *dev)
 
 	ret = ads126x_config_voltage_reference(dev);
 
-	/* Need to check the ret is validated as same in all places */
 	if (ret) {
 		return ret;
 	}
@@ -765,10 +734,6 @@ static void ads126x_data_ready_handler(const struct device *dev, struct gpio_cal
 static int ads126x_channel_setup(const struct device *dev,
 				 const struct adc_channel_cfg *channel_cfg)
 {
-
-	LOG_INF("ads126x channel setup Start");
-	/* const struct ads126x_config *config = dev->config; */
-
 	struct ads126x_data *data = dev->data;
 	int ret;
 
@@ -782,13 +747,6 @@ static int ads126x_channel_setup(const struct device *dev,
 		return ret;
 	}
 
-	/*
-	 * Store configuration.
-	 *
-	 * This is important because adc_read()
-	 * only gives us sequence.channels.
-	 */
-
 	data->channels[channel_cfg->channel_id].configured = true;
 	data->channels[channel_cfg->channel_id].channel_id = channel_cfg->channel_id;
 	data->channels[channel_cfg->channel_id].isDifferential = channel_cfg->differential;
@@ -797,20 +755,16 @@ static int ads126x_channel_setup(const struct device *dev,
 	data->channels[channel_cfg->channel_id].reference = channel_cfg->reference;
 	data->channels[channel_cfg->channel_id].gain = ads126x_get_gain_value(channel_cfg->gain);
 
-	LOG_DBG("Channel %d configured", channel_cfg->channel_id);
-	LOG_INF("ads126x channel setup End\r\n\r\n");
-
 	return 0;
 }
 
 static int ads126x_init(const struct device *dev)
 {
-	struct ads126x_data *data = dev->data;
 	const struct ads126x_config *config = dev->config;
+	struct ads126x_data *data = dev->data;
+	int ret;
 
 	data->dev = dev;
-
-	int ret;
 
 	k_sem_init(&data->drdy_sem, 0, 1);
 
@@ -876,22 +830,19 @@ static int ads126x_init(const struct device *dev)
 	}
 
 	/* Read and validate device ID */
-
 	ret = ads126x_verify_id(dev);
 	if (ret) {
 		return ret;
 	}
 
 	/* Stop ADC1 before configuration */
-
 	ret = ads126x_send_command(dev, ADS126X_CMD_STOP1);
 
 	if (ret) {
 		return ret;
 	}
 
-	/* --- Configure registers --- */
-
+	/* Configure registers */
 	ret = ads126x_config_interface(dev);
 	if (ret) {
 		return ret;
@@ -902,7 +853,7 @@ static int ads126x_init(const struct device *dev)
 		return ret;
 	}
 
-	/* adc context unlock */
+	/* Adc context unlock */
 	adc_context_unlock_unconditionally(&data->ctx);
 
 	LOG_INF("ADS126x (%s) initialised",
